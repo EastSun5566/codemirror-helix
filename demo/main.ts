@@ -140,7 +140,9 @@ const darkTheme =
   ]);
 
   if (import.meta.env.DEV) {
-    await main("src/lib.ts");
+    main("src/lib.ts").catch((error) => {
+      console.error(error);
+    });
   } else {
     const picker = createPicker(undefined, async (file) => {
       await main(file);
