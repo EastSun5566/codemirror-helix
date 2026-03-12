@@ -58,7 +58,7 @@ export class Picker extends HTMLElement {
 
     this.addEventListener("dblclick", () => {
       this.dispatchEvent(
-        new SelectEvent(this.#options[this.#visible[this.#selected]].value)
+        new SelectEvent(this.#options[this.#visible[this.#selected]].value),
       );
     });
   }
@@ -164,7 +164,7 @@ export class Picker extends HTMLElement {
       case "Enter": {
         if (this.#visible.length > 0) {
           this.dispatchEvent(
-            new SelectEvent(this.#options[this.#visible[this.#selected]].value)
+            new SelectEvent(this.#options[this.#visible[this.#selected]].value),
           );
         }
         break;

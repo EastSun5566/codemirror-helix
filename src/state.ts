@@ -178,7 +178,7 @@ export const registersField = StateField.define<Record<string, Array<string | Te
             navigator.clipboard
               .writeText(
                 // FIXME: proper line ending?
-                value.map((yank) => yank.toString()).join("\n")
+                value.map((yank) => yank.toString()).join("\n"),
               )
               .catch((error) => {
                 /* FIXME */ console.error(error);
@@ -445,7 +445,7 @@ export const syntaxHistoryField = StateField.define<
 export function expandSyntaxHistory(
   state: EditorState,
   expand: (start: TransactionSpec, callback: (tr: Transaction) => void) => void,
-  done: (spec: TransactionSpec) => void
+  done: (spec: TransactionSpec) => void,
 ) {
   const history = state.field(syntaxHistoryField);
 
@@ -486,9 +486,9 @@ export function expandSyntaxHistory(
                   next: tr.newSelection,
                 }),
               ],
-            }
+            },
       );
-    }
+    },
   );
 }
 

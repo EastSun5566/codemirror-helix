@@ -62,7 +62,7 @@ function importFolderAsJson(): PluginOption {
             const contents = await readFile(join(folder, file), "utf8");
 
             result[file] = contents;
-          })
+          }),
         );
 
         return {

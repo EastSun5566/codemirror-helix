@@ -94,7 +94,7 @@ export class CommandPanel implements Panel {
       onInput(input: string): void;
       onClose(accept: boolean): CommandPanelMessage | void;
       init: string;
-    }
+    },
   ) {
     this.dom = $el("div") as any;
 
@@ -340,7 +340,7 @@ export class CommandPanel implements Panel {
 
           const command = commands.find(
             (command) =>
-              command.name === cmd || command.aliases?.some((alias) => alias === cmd)
+              command.name === cmd || command.aliases?.some((alias) => alias === cmd),
           );
 
           const result = command
@@ -407,10 +407,10 @@ export class CommandPanel implements Panel {
         const possibleCommands = commands.filter(
           (command) =>
             command.name.startsWith(cmd) ||
-            command.aliases?.some((alias) => alias.startsWith(cmd))
+            command.aliases?.some((alias) => alias.startsWith(cmd)),
         );
         const command = possibleCommands.find(
-          (command) => command.name === cmd || command.aliases?.includes(cmd)
+          (command) => command.name === cmd || command.aliases?.includes(cmd),
         );
 
         function commandToHelp(command: TypableCommand) {

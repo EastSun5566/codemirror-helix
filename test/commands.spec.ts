@@ -350,7 +350,7 @@ async function initEditor(source: Source) {
   await expect($(".ready")).toBePresent();
 
   return browser.execute(
-    `return initEditor(${JSON.stringify(textToString(text))}, ${JSON.stringify(lang)})`
+    `return initEditor(${JSON.stringify(textToString(text))}, ${JSON.stringify(lang)})`,
   );
 }
 

@@ -177,7 +177,7 @@ function startSearch(view: EditorView, mode: SearchMode) {
         }
 
         const newRanges = selections.map((sel) =>
-          EditorSelection.range(sel.from, sel.to)
+          EditorSelection.range(sel.from, sel.to),
         );
 
         const newSelection =
@@ -301,7 +301,7 @@ const helixCommandBindings: {
           historyEffect.of({ type: "commit", state: view.state }),
         ],
         selection: mapSel(view.state.selection, (range) =>
-          range.empty ? internalSelToCM(range, view.state.doc) : range
+          range.empty ? internalSelToCM(range, view.state.doc) : range,
         ),
       });
     },
@@ -416,7 +416,7 @@ const helixCommandBindings: {
         view.dispatch({
           effects: MODE_EFF.INSERT,
           selection: mapSel(view.state.selection, (range) =>
-            EditorSelection.range(range.to, range.to)
+            EditorSelection.range(range.to, range.to),
           ),
         });
       },
@@ -461,13 +461,13 @@ const helixCommandBindings: {
 
           state.tabSize,
 
-          main.head - currentLine.from
+          main.head - currentLine.from,
         );
 
         const anchorCol = countColumn(
           currentLine.text,
           state.tabSize,
-          main.anchor - currentLine.from
+          main.anchor - currentLine.from,
         );
 
         for (
@@ -563,7 +563,7 @@ const helixCommandBindings: {
           count === 1 ? yanks : yanks.map((yank) => yank.toString().repeat(count));
 
         const byIndex = new Map(
-          view.state.selection.ranges.map((range, i) => [range, i])
+          view.state.selection.ranges.map((range, i) => [range, i]),
         );
 
         const tr = view.state.changeByRange((range) => {
@@ -641,7 +641,7 @@ const helixCommandBindings: {
         view.dispatch({
           effects: MODE_EFF.INSERT,
           selection: mapSel(view.state.selection, (range) =>
-            EditorSelection.range(range.from, range.from)
+            EditorSelection.range(range.from, range.from),
           ),
         });
       },
@@ -765,7 +765,7 @@ const helixCommandBindings: {
 
         const ideal = EditorSelection.range(
           startLine.from,
-          Math.min(view.state.doc.length, endLine.to + view.state.lineBreak.length)
+          Math.min(view.state.doc.length, endLine.to + view.state.lineBreak.length),
         );
 
         const perfectLineSelection = ideal.from === range.from && ideal.to === range.to;
@@ -773,13 +773,13 @@ const helixCommandBindings: {
         if (perfectLineSelection || mode.count) {
           const nextLineNumber = Math.min(
             endLine.number + cmdCount(mode),
-            view.state.doc.lines
+            view.state.doc.lines,
           );
           const nextLine = view.state.doc.line(nextLineNumber);
 
           return EditorSelection.range(
             startLine.from,
-            Math.min(view.state.doc.length, nextLine.to + view.state.lineBreak.length)
+            Math.min(view.state.doc.length, nextLine.to + view.state.lineBreak.length),
           );
         } else {
           return ideal;
@@ -908,7 +908,7 @@ const helixCommandBindings: {
       withHelixSelection(view, () => {
         view.dispatch({
           selection: mapSel(view.state.selection, (range) =>
-            EditorSelection.cursor(range.head)
+            EditorSelection.cursor(range.head),
           ),
           scrollIntoView: true,
         });
@@ -921,7 +921,7 @@ const helixCommandBindings: {
         selection: mapSel(view.state.selection, (range) =>
           rangeIsAtomic(range, view.state.doc)
             ? range
-            : EditorSelection.range(range.head, range.anchor)
+            : EditorSelection.range(range.head, range.anchor),
         ),
         scrollIntoView: true,
       });
@@ -931,7 +931,7 @@ const helixCommandBindings: {
         selection: mapSel(view.state.selection, (range) =>
           rangeIsAtomic(range, view.state.doc)
             ? range
-            : EditorSelection.range(range.from, range.to)
+            : EditorSelection.range(range.from, range.to),
         ),
       });
     },
@@ -947,7 +947,7 @@ const helixCommandBindings: {
             dispatch,
           });
         },
-        (spec) => view.dispatch(spec)
+        (spec) => view.dispatch(spec),
       );
     },
     ["Alt-o"]: "Alt-ArrowUp",
@@ -1010,8 +1010,8 @@ const helixCommandBindings: {
     ["*"](view) {
       const yanked = new Set(
         view.state.selection.ranges.map((range) =>
-          escapeRegex(view.state.doc.sliceString(range.from, range.to))
-        )
+          escapeRegex(view.state.doc.sliceString(range.from, range.to)),
+        ),
       );
       const search = [...yanked].join("|");
 
@@ -1156,7 +1156,7 @@ const helixCommandBindings: {
       const isNormal = mode.type === ModeType.Normal;
 
       withHelixSelection(view, () =>
-        isNormal ? cursorDocStart(view) : selectDocStart(view)
+        isNormal ? cursorDocStart(view) : selectDocStart(view),
       );
 
       view.dispatch({
@@ -1179,7 +1179,7 @@ const helixCommandBindings: {
       view.dispatch({
         selection: internalSelToCM(
           isNormal ? EditorSelection.cursor(end) : EditorSelection.range(start, end),
-          view.state.doc
+          view.state.doc,
         ),
         effects: isNormal ? MODE_EFF.NORMAL : MODE_EFF.SELECT,
         scrollIntoView: true,
@@ -1264,7 +1264,7 @@ const helixCommandBindings: {
 
           selection = internalSelToCM(
             EditorSelection.range(internal.anchor, bracketCursor),
-            view.state.doc
+            view.state.doc,
           );
         }
 
@@ -1274,7 +1274,7 @@ const helixCommandBindings: {
       view.dispatch({
         selection: EditorSelection.create(
           view.state.selection.ranges.map((range, i) => selections[i] ?? range),
-          view.state.selection.mainIndex
+          view.state.selection.mainIndex,
         ),
         effects: isNormal ? MODE_EFF.NORMAL : MODE_EFF.SELECT,
         scrollIntoView: true,
@@ -1424,11 +1424,11 @@ function moveByGroup(view: EditorView, mode: NormalLikeMode, forward: boolean) {
       : [
           EditorSelection.range(
             nextClusterBreak(view.state.doc, range.head, !rangeForward),
-            range.head
+            range.head,
           ),
           EditorSelection.range(
             range.anchor,
-            nextClusterBreak(view.state.doc, range.anchor, rangeForward)
+            nextClusterBreak(view.state.doc, range.anchor, rangeForward),
           ),
         ];
 
@@ -1451,7 +1451,7 @@ function moveByGroup(view: EditorView, mode: NormalLikeMode, forward: boolean) {
         ? nextRange
         : EditorSelection.range(
             nextClusterBreak(view.state.doc, nextRange.head, !forward),
-            nextRange.head
+            nextRange.head,
           );
       [nextAnchor, nextHead] =
         nextHeadCursor.to < anchorCursor.from
@@ -1478,7 +1478,7 @@ function toCodemirrorKeymap(keybindings: typeof helixCommandBindings) {
     ...new Set(
       Object.values(keybindings)
         .flat()
-        .flatMap((binding) => Object.keys(binding))
+        .flatMap((binding) => Object.keys(binding)),
     ),
   ];
 
@@ -1498,7 +1498,7 @@ function toCodemirrorKeymap(keybindings: typeof helixCommandBindings) {
             return view.state;
           },
         },
-        mode
+        mode,
       );
     }
   }
@@ -1608,7 +1608,7 @@ const endlineCursorWidget = Decoration.widget({
 
 function drawCursorMark(selection: EditorSelection, doc: Text) {
   const headSelections = selection.ranges.map((range) =>
-    internalSelToCM(EditorSelection.cursor(cmSelToInternal(range, doc).head), doc)
+    internalSelToCM(EditorSelection.cursor(cmSelToInternal(range, doc).head), doc),
   );
 
   const decorations: Range<Decoration>[] = [];
@@ -1652,7 +1652,7 @@ const selectByClickFilter = EditorState.transactionFilter.from(modeField, (mode)
             selection: internalSelToCM(selection, tr.newDoc),
           },
         ];
-      }
+      },
 );
 
 const unhandledCommandsFilter = EditorState.transactionFilter.from(modeField, (mode) =>
@@ -1685,7 +1685,7 @@ const unhandledCommandsFilter = EditorState.transactionFilter.from(modeField, (m
         }
 
         return [];
-      }
+      },
 );
 
 // TODO: this trick doesn't work with compositing. We have to
@@ -1699,7 +1699,7 @@ const expectingInputHandler = EditorView.inputHandler.from(
     }
 
     return false;
-  }
+  },
 );
 
 const modeUpdateListener = EditorView.updateListener.of((viewUpdate) => {
@@ -1759,25 +1759,28 @@ const externalCommandsFacet = Facet.define<
     handlers.reverse();
 
     if (process.env.NODE_ENV === "development") {
-      const merged = values.reduce((acc, defs) => {
-        for (const key of Object.keys(defs)) {
-          if (acc[key] == null) {
-            acc[key] = 1;
-          } else {
-            acc[key]++;
+      const merged = values.reduce(
+        (acc, defs) => {
+          for (const key of Object.keys(defs)) {
+            if (acc[key] == null) {
+              acc[key] = 1;
+            } else {
+              acc[key]++;
+            }
           }
-        }
 
-        return acc;
-      }, {} as Record<string, number>);
+          return acc;
+        },
+        {} as Record<string, number>,
+      );
 
       const multiple = Object.entries(merged).flatMap(([key, count]) =>
-        count > 1 ? [key] : []
+        count > 1 ? [key] : [],
       );
 
       if (multiple.length > 0) {
         console.warn(
-          `Multiple definitions found for external commands: ${multiple.join(", ")}`
+          `Multiple definitions found for external commands: ${multiple.join(", ")}`,
         );
       }
     }
@@ -1886,7 +1889,7 @@ export const commands = Facet.define<TypableCommand[], TypableCommand[]>({
     const combined = commands.flat();
 
     return combined.sort((cmdA, cmdB) =>
-      cmdA.name < cmdB.name ? -1 : cmdA.name > cmdB.name ? 1 : 0
+      cmdA.name < cmdB.name ? -1 : cmdA.name > cmdB.name ? 1 : 0,
     );
   },
 });
@@ -2053,33 +2056,33 @@ export function helix(options: Options = {}): Extension {
     globalState instanceof EditorState
       ? globalState.field(registersField)
       : globalState
-      ? (globalState as any as PrivateSnapshot).registers
-      : undefined;
+        ? (globalState as any as PrivateSnapshot).registers
+        : undefined;
 
   const initialHistory =
     options.init instanceof EditorState
       ? options.init.field(historyField)
       : options.init
-      ? (options.init as any as PrivateSnapshot).history
-      : undefined;
+        ? (options.init as any as PrivateSnapshot).history
+        : undefined;
 
   const initialRegistersHistory =
     globalState instanceof EditorState
       ? globalState.field(registersHistoryField)
       : globalState
-      ? (globalState as any as PrivateSnapshot).registersHistory
-      : undefined;
+        ? (globalState as any as PrivateSnapshot).registersHistory
+        : undefined;
 
   const initialThemeName =
     globalState instanceof EditorState
       ? globalState.field(themeField, false)?.current
       : globalState
-      ? (globalState as any as PrivateSnapshot).theme
-      : options.config?.theme;
+        ? (globalState as any as PrivateSnapshot).theme
+        : options.config?.theme;
 
   if (initialThemeName != null && !options.themes?.length) {
     throw new Error(
-      "options.config.theme only takes effect if options.themes was provided."
+      "options.config.theme only takes effect if options.themes was provided.",
     );
   }
 
@@ -2108,7 +2111,7 @@ export function helix(options: Options = {}): Extension {
       themeCompartment.of([
         initialThemeExtension,
         initialTheme!.dark ? panelTheme.dark : panelTheme.light,
-      ])
+      ]),
     );
   } else if (initialTheme) {
     themeExtensions.push([
@@ -2162,7 +2165,7 @@ export function helix(options: Options = {}): Extension {
             }
 
             return [tr, { effects: syntaxHistoryEffect.of({ type: "reset" }) }];
-          }
+          },
     ),
     EditorView.decorations.compute(["selection", "doc", modeField], (state) => {
       if (cursorShape === "bar" && state.field(modeField).type === ModeType.Insert) {
@@ -2206,7 +2209,7 @@ export function helix(options: Options = {}): Extension {
           if (modeChanged && cursorShape === "bar") {
             view.scrollDOM.classList.toggle(
               "cm-hx-block-cursor",
-              mode.type !== ModeType.Insert
+              mode.type !== ModeType.Insert,
             );
           }
         },
@@ -2302,7 +2305,7 @@ export function helix(options: Options = {}): Extension {
 
                 return (
                   options.themes?.flatMap((theme) =>
-                    theme.name.startsWith(themeName) ? [theme.name] : []
+                    theme.name.startsWith(themeName) ? [theme.name] : [],
                   ) ?? []
                 );
               },
@@ -2410,7 +2413,7 @@ function resetScroll(view: EditorView, effect: StateEffect<any>) {
   requestAnimationFrame(() =>
     requestAnimationFrame(() => {
       view.dispatch({ effects: effect });
-    })
+    }),
   );
 }
 

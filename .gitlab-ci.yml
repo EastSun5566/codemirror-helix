@@ -82,6 +82,7 @@ lint:
   script:
     - npm ci --cache npm_cache
     - npm exec --no prettier -- --check .
+    - npm exec --no eslint
 
 pages:
   stage: deploy

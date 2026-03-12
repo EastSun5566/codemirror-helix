@@ -24,9 +24,8 @@ const debugEl = document.querySelector("hx-debug")!;
 let tabGroup: SlTabGroup;
 
 function initShoelace() {
-  document.querySelector(
-    "#editor"
-  )!.outerHTML = `<sl-tab-group activation="manual"></sl-tab-group>`;
+  document.querySelector("#editor")!.outerHTML =
+    `<sl-tab-group activation="manual"></sl-tab-group>`;
 
   tabGroup = document.querySelector("sl-tab-group")!;
 
@@ -37,7 +36,7 @@ function initShoelace() {
 
     if (changed) {
       state.active = panels.indexOf(
-        tabGroup.querySelector(`sl-tab-panel[name="${(e as any).detail.name}"]`)!
+        tabGroup.querySelector(`sl-tab-panel[name="${(e as any).detail.name}"]`)!,
       );
     }
 
@@ -107,7 +106,7 @@ const themes = [
     name: "solarized-light",
     extension: () => () =>
       import("@ddietr/codemirror-themes/solarized-light").then(
-        (mod) => mod.solarizedLight
+        (mod) => mod.solarizedLight,
       ),
   },
   {
@@ -178,7 +177,7 @@ async function createViewPanel(file: string) {
   const view = await createView(
     file,
     getPersistedFile(file) ?? (await getFiles())[file],
-    tabPanel
+    tabPanel,
   );
 
   state.set(file, view, tabPanel, tab);
@@ -209,7 +208,7 @@ async function createView(file: string, doc: string, parent: HTMLElement) {
                 const active = state.tabs[state.active] === value;
 
                 return { value, label: active ? `⁎ ${value}` : `  ${value}` };
-              })
+              }),
             );
           },
           file_picker() {
@@ -269,7 +268,7 @@ async function createView(file: string, doc: string, parent: HTMLElement) {
                 : [[state.active, state.tabs[state.active]] as const];
 
               toClose.sort(([indexA], [indexB]) =>
-                indexA < indexB ? -1 : indexA > indexB ? 1 : 0
+                indexA < indexB ? -1 : indexA > indexB ? 1 : 0,
               );
 
               let closeError = false;
@@ -438,7 +437,7 @@ function createPicker(view: EditorView | undefined, onSelect: (value: string) =>
       view?.focus();
       picker.remove();
     },
-    { once: true }
+    { once: true },
   );
 
   picker.addEventListener(
@@ -448,7 +447,7 @@ function createPicker(view: EditorView | undefined, onSelect: (value: string) =>
 
       onSelect(e.value);
     },
-    { once: true }
+    { once: true },
   );
 
   return picker;
@@ -497,7 +496,7 @@ function configFromInput() {
   for (const control of controls) {
     if (control instanceof HTMLSelectElement) {
       config[control.name] = ([...control.children] as HTMLOptionElement[]).find(
-        (opt) => opt.selected
+        (opt) => opt.selected,
       )!.value;
     }
   }

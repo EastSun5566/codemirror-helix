@@ -42,9 +42,9 @@ window.onerror = (_event, _source, _lineno, _colno, error) => {
           nonce: Math.random(),
         },
         null,
-        2
+        2,
       ),
-    })
+    }),
   );
 };
 

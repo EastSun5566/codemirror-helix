@@ -9,7 +9,7 @@ export function backwardsSearch(
   state: EditorState,
   query: SearchQuery,
   mode: NonInsertMode,
-  select: (match: Match) => void
+  select: (match: Match) => void,
 ) {
   type Match = { from: number; to: number };
 
@@ -120,7 +120,7 @@ class Ring<T> {
 
 function peekingUntil<T, R, N>(
   iter: ReturnType<typeof peekable<T, R, N>>,
-  check: (next: T) => boolean
+  check: (next: T) => boolean,
 ) {
   return {
     next() {
