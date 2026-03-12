@@ -225,6 +225,30 @@ const cases: Record<string, Case> = {
       selection: [11, 6],
     },
   ],
+  "match in paragraph": [
+    [
+      "hello world",
+      "",
+      "helix rocks",
+      "second line of the paragraph",
+      "",
+      "another line outside",
+    ],
+    ["j", "j", "m", "i", "p"],
+    {
+      selection: [13, 54],
+    },
+  ],
+  "match in paragraph with multiple cursor": [
+    ["hello world", "", "second line of the paragraph"],
+    ["C", "C", "m", "i", "p"],
+    {
+      selection: [
+        [0, 12],
+        [13, 41],
+      ],
+    },
+  ],
 };
 
 describe("codemirror-helix", () => {

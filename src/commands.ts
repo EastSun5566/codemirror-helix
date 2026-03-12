@@ -621,9 +621,41 @@ export function surround(view: EditorView, char: string) {
   view.dispatch(tr, { effects: MODE_EFF.NORMAL });
 }
 
+function selectParagraph(view: EditorView) {
+  const mode = view.state.field(modeField);
+  const state = view.state;
+
+  const newRanges = [];
+  for (let seli = 0; seli < view.state.selection.ranges.length; seli++) {
+    const lineNum = state.doc.lineAt(view.state.selection.ranges[seli].from).number;
+    let prev = findEmptyLine(state, lineNum, false);
+    let next = findEmptyLine(state, lineNum, true);
+
+    let startPos = 0;
+    let endPos = state.doc.length;
+    if (prev) startPos = prev.to + 1;
+    if (next) endPos = next.to;
+
+    newRanges.push(EditorSelection.range(startPos, endPos));
+  }
+  if (newRanges.length > 0)
+    view.dispatch({
+      selection: EditorSelection.create(newRanges, view.state.selection.mainIndex),
+    });
+  view.dispatch({
+    effects: mode.type === ModeType.Normal ? MODE_EFF.NORMAL : MODE_EFF.SELECT,
+  });
+  return;
+}
+
 export function extendToDelimiters(view: EditorView, char: string, inclusive: boolean) {
   const mode = view.state.field(modeField);
   const pair = PAIRS[char];
+
+  if (char === "p") {
+    selectParagraph(view);
+    return;
+  }
 
   const open = pair?.[0] ?? char;
   const close = pair?.[1] ?? char;
@@ -1032,6 +1064,25 @@ export function nextClusterBreak(doc: Text, pos: number, forward: boolean) {
   }
 
   return findClusterBreak(line.text, pos - line.from, forward) + line.from;
+}
+
+export function findEmptyLine(state: EditorState, startLine: number, forward: boolean) {
+  if (forward) {
+    for (let n = startLine; n <= state.doc.lines; n++) {
+      const line = state.doc.line(n);
+      if (line.length === 0) {
+        return line;
+      }
+    }
+  } else {
+    for (let n = startLine; n >= 1; n--) {
+      const line = state.doc.line(n);
+      if (line.length === 0) {
+        return line;
+      }
+    }
+  }
+  return null;
 }
 
 export function mapSel(

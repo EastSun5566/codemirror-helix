@@ -21,4 +21,8 @@ npm run build
 # Run the test suite
 # (you need to run a build before)
 npm test
+
+# Format the source code
+npx prettier . --write
+
 ```
