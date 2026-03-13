@@ -559,7 +559,137 @@ const PAIRS: Record<string, [string, string, boolean]> = {
   ">": ["<", ">", false],
 };
 
-const MATCHEABLE = new Set([...Object.keys(PAIRS), `"`, "'"]);
+const MATCHEABLE = new Set([...Object.keys(PAIRS), '"', "'"]);
+const MATCHEABLESTARTS = ["(", "{", "["];
+const MATCHEABLEENDS = [")", "}", "]"];
+const MATCHEABLEDUOS = ['"', "'"];
+
+export function matchInBrackets(view: EditorView, inclusive: boolean) {
+  const doc = view.state.doc.toString();
+  const newRanges = [];
+
+  for (let seli = 0; seli < view.state.selection.ranges.length; seli++) {
+    let pos = view.state.selection.ranges[seli].from;
+    let startChar = "";
+    let endChar = "";
+    let startPos = 0;
+    let endPos = 0;
+    let depth = 0;
+
+    //find closest opening braket or quote in backward direction
+    for (let i = pos - 1; i >= 0; i--) {
+      if (MATCHEABLEENDS.includes(doc[i])) depth++;
+      if (MATCHEABLESTARTS.includes(doc[i]) || MATCHEABLEDUOS.includes(doc[i])) {
+        if (depth === 0) {
+          startPos = i + 1;
+          startChar = doc[i];
+          break;
+        } else if (MATCHEABLESTARTS.includes(doc[i])) depth--;
+      }
+    }
+    depth = 0;
+
+    //find closest closing braket or quote in forward direction
+    for (let i = pos; i < doc.length; i++) {
+      if (MATCHEABLESTARTS.includes(doc[i])) depth++;
+      if (MATCHEABLEENDS.includes(doc[i]) || MATCHEABLEDUOS.includes(doc[i])) {
+        if (depth === 0) {
+          endPos = i;
+          endChar = doc[i];
+          break;
+        } else if (MATCHEABLEENDS.includes(doc[i])) depth--;
+      }
+    }
+
+    if (endChar != "" && startChar != "") {
+      let selectFrom = -1;
+      let selectTo = -1;
+
+      if (pos - startPos > endPos - pos) {
+        // end character wins
+
+        selectTo = endPos;
+        let searchChar = endChar;
+        if (PAIRS[endChar]) searchChar = PAIRS[endChar][0];
+
+        if (endChar == searchChar) {
+          // quotes, simple search
+          for (let i = endPos - 1; i >= 0; i--) {
+            {
+              if (doc[i] === searchChar) {
+                selectFrom = i + 1;
+                break;
+              }
+            }
+          }
+        } else {
+          // brakets
+          for (let i = endPos - 1; i >= 0; i--) {
+            if (MATCHEABLEENDS.includes(doc[i])) depth++;
+            if (MATCHEABLESTARTS.includes(doc[i])) {
+              if (depth === 0) {
+                if (doc[i] === searchChar) {
+                  selectFrom = i + 1;
+                  break;
+                }
+              } else {
+                depth--;
+              }
+            }
+          }
+        }
+      } else {
+        // start character wins
+        selectFrom = startPos;
+        let searchChar = startChar;
+        if (PAIRS[startChar]) searchChar = PAIRS[startChar][1];
+
+        if (startChar == searchChar) {
+          // quotes, simple search
+          for (let i = startPos; i < doc.length; i++) {
+            {
+              if (doc[i] === searchChar) {
+                selectTo = i;
+                break;
+              }
+            }
+          }
+        } else {
+          // brakets
+          for (let i = startPos; i < doc.length; i++) {
+            if (MATCHEABLESTARTS.includes(doc[i])) depth++;
+            if (MATCHEABLEENDS.includes(doc[i])) {
+              if (depth === 0 && doc[i] == searchChar) {
+                selectTo = i;
+                break;
+              } else {
+                depth--;
+              }
+            }
+          }
+        }
+      }
+
+      if (selectTo !== -1 && selectFrom !== -1) {
+        if (inclusive) {
+          if (selectTo < doc.length) selectTo++;
+          if (selectFrom > 0) selectFrom--;
+        }
+        newRanges.push(EditorSelection.range(selectFrom, selectTo));
+      }
+    }
+    if (newRanges.length > 0)
+      view.dispatch({
+        selection: EditorSelection.create(newRanges, view.state.selection.mainIndex),
+      });
+  }
+  view.dispatch({
+    effects:
+      view.state.field(modeField).type === ModeType.Normal
+        ? MODE_EFF.NORMAL
+        : MODE_EFF.SELECT,
+  });
+}
 
 export function matchBracket(view: EditorView) {
   return view.state.selection.ranges.map((range) => {
@@ -652,9 +782,13 @@ export function extendToDelimiters(view: EditorView, char: string, inclusive: bo
   const mode = view.state.field(modeField);
   const pair = PAIRS[char];
 
-  if (char === "p") {
-    selectParagraph(view);
-    return;
+  switch (char) {
+    case "m":
+      matchInBrackets(view, inclusive);
+      return;
+    case "p":
+      selectParagraph(view);
+      return;
   }
 
   const open = pair?.[0] ?? char;

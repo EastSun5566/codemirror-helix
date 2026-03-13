@@ -225,6 +225,34 @@ const cases: Record<string, Case> = {
       selection: [11, 6],
     },
   ],
+  "match in brackets": [
+    ["hello (world, {what is up}) xyz"],
+    ["w", "w", "w", "m", "i", "m"],
+    {
+      selection: [7, 26],
+    },
+  ],
+  "match in quotes": [
+    ['hello "world, what is up" xyz'],
+    ["w", "w", "w", "m", "i", "m"],
+    {
+      selection: [7, 24],
+    },
+  ],
+  "match in nested brakets": [
+    ["[[xyz] [abc]]"],
+    ["l", "l", "l", "l", "l", "l", "m", "i", "m"],
+    {
+      selection: [1, 12],
+    },
+  ],
+  "match around quotes": [
+    ['hello "world, what is up" xyz'],
+    ["w", "w", "w", "m", "a", "m"],
+    {
+      selection: [6, 25],
+    },
+  ],
   "match in paragraph": [
     [
       "hello world",
