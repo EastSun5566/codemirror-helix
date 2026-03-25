@@ -30,6 +30,12 @@ function initEditor(doc: string, lang: string | null) {
   window.view = view;
 }
 
+let clipboard = "";
+navigator.clipboard.readText = async () => clipboard;
+navigator.clipboard.writeText = async (data) => {
+  clipboard = data;
+};
+
 window.initEditor = initEditor;
 
 window.onerror = (_event, _source, _lineno, _colno, error) => {

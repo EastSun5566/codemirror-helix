@@ -9,17 +9,22 @@ import { Key } from "webdriverio";
 type Expectation =
   | Text
   | {
-      selection: [anchor: number, head: number] | Array<[anchor: number, head: number]>;
+      selection?: [anchor: number, head: number] | Array<[anchor: number, head: number]>;
       text?: Text;
+      clipboard?: Text;
     };
 
 // set this to `true` to make tests go real slow and help debugging
 const SLOW = false;
 
+const FIXME = false;
+
 // Represents text as a string or optionally as an array of lines
 type Text = string | string[];
 
 type Source = Text | { lang: string; source: Text };
+
+type Command = string | { copy: string };
 
 // How to write a test case
 //
@@ -28,7 +33,7 @@ type Source = Text | { lang: string; source: Text };
 //
 // Optionally, the array can have one more element, a boolean as the first field
 // to single out focused tests (a la `it.only()`).
-type Case = [Source, string[], Expectation] | [boolean, Source, string[], Expectation];
+type Case = [Source, Command[], Expectation] | [boolean, Source, Command[], Expectation];
 
 const cases: Record<string, Case> = {
   "moves to line end": [["foo", "bar"], ["g", "l"], { selection: [3, 2] }],
@@ -109,6 +114,17 @@ const cases: Record<string, Case> = {
     ["hello", "world"],
     ["x", "_", "y", "Alt-;", ";", "j", "l", "P"],
     ["hello", "whelloorld"],
+  ],
+  "paste from clipboard": ["", [{ copy: "foobar" }, "Space", "p"], "foobar"],
+  "paste from clipboard, multiple selections": [
+    ["hello", "world", "helix"],
+    ["C", "C", "Space", "y", "g", "l", "Space", "p"],
+    { text: ["helloh", "worldw", "helixh"], clipboard: ["h", "w", "h"] },
+  ],
+  "paste from clipboard, multiple selections, collapse": [
+    ["hello", "world", "helix"],
+    ["C", "C", "Space", "y", "%", "d", "Space", "p"],
+    "h",
   ],
   "surround add multiple selections": [
     ["xxxeyyy", "xxxxeyyy"],
@@ -218,6 +234,14 @@ const cases: Record<string, Case> = {
       text: [" world", " rocks"],
     },
   ],
+  "duplicate cursor, multiplier": [
+    FIXME,
+    ["hello world", "helix rocks", "hummus yum"],
+    ["w", "2", "C", "d"],
+    {
+      text: [" world", " rocks", " yum"],
+    },
+  ],
   "expand selection": [
     { lang: "js", source: ["const hello = 'world';"] },
     ["f", "e", ";", "Alt-o"],
@@ -280,41 +304,48 @@ const cases: Record<string, Case> = {
 };
 
 describe("codemirror-helix", () => {
-  const casesList = Object.entries(cases);
-  const skipping = casesList.some(([, case_]) => case_.length === 4);
-
-  for (const [title, case_] of casesList) {
-    let only = !skipping;
+  for (const [title, case_] of Object.entries(cases)) {
+    let mode: boolean | undefined;
     let source: Source;
-    let commands: string[];
+    let rawCommands: Command[];
     let expected: Expectation;
 
     if (case_.length === 4) {
-      [only, source, commands, expected] = case_ as any;
+      [mode, source, rawCommands, expected] = case_ as any;
     } else {
-      [source, commands, expected] = case_ as any;
+      [source, rawCommands, expected] = case_ as any;
     }
 
-    const keys = toKeys(commands);
+    const commands = parseCommands(rawCommands);
 
-    const itFn = only ? it.only : it;
+    const itFn = mode == null ? it : mode ? it.only : it.skip;
 
     itFn(title, async () => {
       await browser.url("http://localhost:45183");
 
       await initEditor(source);
 
-      for (const key of keys) {
+      for (const command of commands) {
         await (SLOW ? wait(1000) : undefined);
-        await browser.keys(key);
+        if ("key" in command) {
+          await browser.keys(command.key);
+        } else {
+          await browser.execute(
+            `navigator.clipboard.writeText(${JSON.stringify(command.copy)})`,
+          );
+        }
       }
 
       await (SLOW ? wait(1000) : undefined);
 
-      const [expectedSelection, expectedText] =
+      const [expectedSelection, expectedText, expectedClipboard] =
         typeof expected === "string" || Array.isArray(expected)
-          ? [null, textToString(expected)]
-          : [expected.selection, expected.text && textToString(expected.text)];
+          ? [null, textToString(expected), null]
+          : [
+              expected.selection,
+              expected.text && textToString(expected.text),
+              expected.clipboard && textToString(expected.clipboard),
+            ];
 
       if (expectedSelection != null) {
         const selection = await getSelection();
@@ -332,6 +363,12 @@ describe("codemirror-helix", () => {
         const doc = await getDoc();
 
         expect(doc).toBe(expectedText);
+      }
+
+      if (expectedClipboard != null) {
+        const clipboard = await browser.execute("return navigator.clipboard.readText()");
+
+        expect(clipboard).toBe(expectedClipboard);
       }
     });
   }
@@ -362,26 +399,32 @@ function getSelection() {
   return browser.execute("return view.state.selection.toJSON()");
 }
 
-function toKeys(commands: string[]) {
-  const keys: Array<string | string[]> = [];
+function parseCommands(commands: Command[]) {
+  const parsed: Array<Extract<Command, { copy: string }> | { key: string | string[] }> =
+    [];
 
-  for (let command of commands) {
+  for (const command of commands) {
+    if (typeof command === "object") {
+      parsed.push(command);
+      continue;
+    }
+
     if (command.startsWith("Alt-")) {
-      command = command.replace("Alt-", "");
-      keys.push([Key.Alt, command]);
+      const key = command.replace("Alt-", "");
+      parsed.push({ key: [Key.Alt, key] });
       continue;
     }
 
     if (command.startsWith("Ctrl-")) {
-      command = command.replace("Ctrl-", "");
-      keys.push([Key.Ctrl, command]);
+      const key = command.replace("Ctrl-", "");
+      parsed.push({ key: [Key.Ctrl, key] });
       continue;
     }
 
-    keys.push(command);
+    parsed.push({ key: command });
   }
 
-  return keys;
+  return parsed;
 }
 
 function textToString(text: Text) {
