@@ -5,35 +5,47 @@ import { Key } from "webdriverio";
 // - The final contents of the the document, or
 // - A { selection, text } object.
 //
-// A selection is described as an [anchor, head], or an array of such (for multi-selections).
 type Expectation =
+  // shorthand for  a { text } expectation
   | Text
   | {
+      // the final selection, described as an [anchor, head], or an array of such (for multi-selections).
       selection?: [anchor: number, head: number] | Array<[anchor: number, head: number]>;
+      // the final contents of the editor
       text?: Text;
+      // the contents of the clipboard
       clipboard?: Text;
     };
 
 // set this to `true` to make tests go real slow and help debugging
 const SLOW = false;
 
-const FIXME = false;
+const FIXME = Symbol();
 
-// Represents text as a string or optionally as an array of lines
+// represents text as a string or optionally as an array of lines
 type Text = string | string[];
 
+// the editor source described as text or, optionally,
+// as text plus a language to be added to the editor config
 type Source = Text | { lang: string; source: Text };
 
-type Command = string | { copy: string };
+// a command to send to the editor
+type Command =
+  // a key to send to the editor (e.g. "a" or "Alt-C")
+  | string
+  // instructs the browser to enter that text into the clipboard
+  | { copy: string };
 
 // How to write a test case
 //
 // A test case is just an array with:
-// [ initialEditorText, pressedKeys, expectation ]
+// [ initialEditorSource, commandsOrKeys, expectation ]
 //
 // Optionally, the array can have one more element, a boolean as the first field
-// to single out focused tests (a la `it.only()`).
-type Case = [Source, Command[], Expectation] | [boolean, Source, Command[], Expectation];
+// to single out focused/skipped tests (a la `it.only()`/`it.skip()`).
+type Case =
+  | [Source, Command[], Expectation]
+  | [boolean | typeof FIXME, Source, Command[], Expectation];
 
 const cases: Record<string, Case> = {
   "moves to line end": [["foo", "bar"], ["g", "l"], { selection: [3, 2] }],
@@ -120,6 +132,11 @@ const cases: Record<string, Case> = {
     ["hello", "world", "helix"],
     ["C", "C", "Space", "y", "g", "l", "Space", "p"],
     { text: ["helloh", "worldw", "helixh"], clipboard: ["h", "w", "h"] },
+  ],
+  "paste from clipboard, external override": [
+    ["hello", "world", "helix"],
+    ["C", "C", "Space", "y", "g", "l", { copy: "xx" }, "Space", "p"],
+    ["helloxx", "worldxx", "helixxx"],
   ],
   "paste from clipboard, multiple selections, collapse": [
     ["hello", "world", "helix"],
@@ -305,7 +322,7 @@ const cases: Record<string, Case> = {
 
 describe("codemirror-helix", () => {
   for (const [title, case_] of Object.entries(cases)) {
-    let mode: boolean | undefined;
+    let mode: boolean | typeof FIXME | undefined;
     let source: Source;
     let rawCommands: Command[];
     let expected: Expectation;
@@ -316,9 +333,13 @@ describe("codemirror-helix", () => {
       [source, rawCommands, expected] = case_ as any;
     }
 
+    if (process.env.CI && mode != null && mode !== FIXME) {
+      throw new Error("Unexpected test focusing");
+    }
+
     const commands = parseCommands(rawCommands);
 
-    const itFn = mode == null ? it : mode ? it.only : it.skip;
+    const itFn = mode == null ? it : mode === true ? it.only : it.skip;
 
     itFn(title, async () => {
       await browser.url("http://localhost:45183");
