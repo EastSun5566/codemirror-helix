@@ -70,6 +70,7 @@ import {
   undoSyntaxHistory,
   yankEffect,
   readSyncRegister,
+  defaultYankRegister,
 } from "./state";
 import {
   CommandPanel,
@@ -1977,6 +1978,7 @@ export interface Config {
    */
   theme?: string;
   "editor.cursor-shape.insert"?: "block" | "bar";
+  "editor.default-yank-register"?: string;
 }
 
 const themeFacet = Facet.define<(theme: { name: string; dark?: boolean }) => void>({
@@ -2167,6 +2169,7 @@ export function helix(options: Options = {}): Extension {
     unhandledCommandsFilter,
     selectByClickFilter,
     expectingInputHandler,
+    defaultYankRegister.of(options.config?.["editor.default-yank-register"] ?? `"`),
     EditorState.allowMultipleSelections.of(true),
     EditorState.transactionFilter.from(syntaxHistoryField, ({ selections }) =>
       selections.length === 0

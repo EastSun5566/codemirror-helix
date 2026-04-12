@@ -3,6 +3,7 @@ import {
   EditorSelection,
   EditorState,
   Extension,
+  Facet,
   StateEffect,
   StateField,
   Text,
@@ -131,13 +132,15 @@ export function readRegister(
       return readClipboard(state).then(callback);
     }
     default: {
-      callback(state.field(registersField)[register ?? `"`]);
+      callback(state.field(registersField)[register ?? state.facet(defaultYankRegister)]);
       return Promise.resolve();
     }
   }
 }
 
 export function readSyncRegister(state: EditorState, register?: string) {
+  register ??= state.facet(defaultYankRegister);
+
   switch (register) {
     case "#": {
       return state.selection.ranges.map((_, i) => String(i + 1));
@@ -154,9 +157,7 @@ export function readSyncRegister(state: EditorState, register?: string) {
       return path != null ? [path] : [];
     }
     default: {
-      return state.field(registersField)[register ?? `"`] as
-        | Array<string | Text>
-        | undefined;
+      return state.field(registersField)[register] as Array<string | Text> | undefined;
     }
   }
 }
@@ -561,5 +562,11 @@ export const themeField = StateField.define<{
     }
 
     return value;
+  },
+});
+
+export const defaultYankRegister = Facet.define<string, string>({
+  combine(values) {
+    return values[0];
   },
 });

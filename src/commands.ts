@@ -7,7 +7,7 @@ import {
   Text,
   findClusterBreak,
 } from "@codemirror/state";
-import { modeEffect, modeField, yankEffect } from "./state";
+import { defaultYankRegister, modeEffect, modeField, yankEffect } from "./state";
 import { matchBrackets, syntaxTree } from "@codemirror/language";
 import type { SyntaxNode } from "@lezer/common";
 import { cursorLineStart, selectLineStart } from "@codemirror/commands";
@@ -97,7 +97,7 @@ export function removeText(
   if (yank) {
     effects.push(
       yankEffect.of([
-        `"`,
+        view.state.facet(defaultYankRegister),
         view.state.selection.ranges.map((range) =>
           view.state.doc.slice(range.from, range.to),
         ),
@@ -986,7 +986,7 @@ export function yanksForSelection(
 export function yank(view: EditorView, mode: NonInsertMode, register?: string) {
   const { selection } = view.state;
 
-  register ??= mode.register ?? `"`;
+  register ??= mode.register ?? view.state.facet(defaultYankRegister);
 
   view.dispatch({
     effects: [
