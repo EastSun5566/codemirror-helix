@@ -101,7 +101,43 @@ export const yankEffect = StateEffect.define<
 >();
 
 // FIXME: handle '+'
-export function readRegister(state: EditorState, register?: string) {
+export function readRegister(
+  state: EditorState,
+  callback: (contents?: Array<string | Text>) => void,
+  register?: string,
+): Promise<unknown> {
+  switch (register) {
+    case "#": {
+      callback(state.selection.ranges.map((_, i) => String(i + 1)));
+      return Promise.resolve();
+    }
+    case "_": {
+      callback([]);
+      return Promise.resolve();
+    }
+    case ".": {
+      callback(
+        state.selection.ranges.map((range) => state.sliceDoc(range.from, range.to)),
+      );
+      return Promise.resolve();
+    }
+    case "%": {
+      const path = state.facet(pathRegister);
+
+      callback(path != null ? [path] : []);
+      return Promise.resolve();
+    }
+    case "+": {
+      return readClipboard(state).then(callback);
+    }
+    default: {
+      callback(state.field(registersField)[register ?? `"`]);
+      return Promise.resolve();
+    }
+  }
+}
+
+export function readSyncRegister(state: EditorState, register?: string) {
   switch (register) {
     case "#": {
       return state.selection.ranges.map((_, i) => String(i + 1));
@@ -125,8 +161,8 @@ export function readRegister(state: EditorState, register?: string) {
   }
 }
 
-export async function readClipboard(state: EditorState) {
-  const yanked = readRegister(state, "+");
+async function readClipboard(state: EditorState) {
+  const yanked = readSyncRegister(state, "+");
 
   const copied = await navigator.clipboard.readText();
 
@@ -151,6 +187,7 @@ export const registersField = StateField.define<Record<string, Array<string | Te
             const regs = new Set(Object.keys(registers));
 
             if (["_", "%", ".", "#"].some((reg) => regs.has(reg))) {
+              // FIXME: we should signal an error instead
               console.error(`unexpected read-only register`);
             }
           }

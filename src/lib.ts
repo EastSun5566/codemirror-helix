@@ -56,7 +56,6 @@ import {
   modeEffect,
   modeField,
   overwriteMode,
-  readClipboard,
   readRegister,
   registersField,
   registersHistoryField,
@@ -70,6 +69,7 @@ import {
   themeField,
   undoSyntaxHistory,
   yankEffect,
+  readSyncRegister,
 } from "./state";
 import {
   CommandPanel,
@@ -226,7 +226,7 @@ function startSearch(view: EditorView, mode: SearchMode) {
 
       if (mode === SearchMode.Global) {
         const externalCommands = view.state.facet(externalCommandsFacet);
-        const query = input || readRegister(view.state, "/");
+        const query = input || readSyncRegister(view.state, "/");
 
         if (query) {
           return externalCommands.global_search?.(query.toString());
@@ -312,13 +312,17 @@ const helixCommandBindings: {
           expecting: {
             minor: "<C-r>",
             callback(view, char, _metadata) {
-              const yanked = readRegister(view.state, char);
+              readRegister(view.state, insert, char).catch((error) =>
+                getCommandPanel(view).showError(error.message),
+              );
 
-              paste(view, yanked, false, 1, { select: false, reset: false });
+              function insert(yanked?: Array<string | Text> | undefined) {
+                paste(view, yanked, false, 1, { select: false, reset: false });
 
-              view.dispatch({
-                effects: MODE_EFF.INSERT,
-              });
+                view.dispatch({
+                  effects: MODE_EFF.INSERT,
+                });
+              }
             },
             metadata: undefined,
           },
@@ -534,60 +538,68 @@ const helixCommandBindings: {
     ["P"]: {
       checkpoint: true,
       command(view, mode) {
-        const yanked = readRegister(view.state, mode.register);
-
-        paste(view, yanked, true, cmdCount(mode));
+        readRegister(
+          view.state,
+          (yanked) => paste(view, yanked, true, cmdCount(mode)),
+          mode.register,
+        ).catch((error) => getCommandPanel(view.original).showError(error.message));
       },
     },
     ["p"]: {
       checkpoint: true,
       command(view, mode) {
-        const yanked = readRegister(view.state, mode.register);
-
-        paste(view, yanked, false, cmdCount(mode));
+        readRegister(
+          view.state,
+          (yanked) => paste(view, yanked, false, cmdCount(mode)),
+          mode.register,
+        ).catch((error) => getCommandPanel(view.original).showError(error.message));
       },
     },
     ["R"]: {
       checkpoint: true,
       command(view, mode) {
-        const contents = readRegister(view.state, mode.register);
-
-        if (!contents) {
-          return true;
-        }
-
-        const count = cmdCount(mode);
-        const yanks = yanksForSelection(view.state.selection, contents);
-
-        const replacements =
-          count === 1 ? yanks : yanks.map((yank) => yank.toString().repeat(count));
-
-        const byIndex = new Map(
-          view.state.selection.ranges.map((range, i) => [range, i]),
+        readRegister(view.state, replace, mode.register).catch((error) =>
+          getCommandPanel(view.original).showError(error.message),
         );
 
-        const tr = view.state.changeByRange((range) => {
-          const insert = replacements[byIndex.get(range)!];
-
-          if (!insert) {
-            return { range };
+        function replace(yanked?: Array<string | Text>) {
+          if (!yanked) {
+            return;
           }
 
-          // FIXME: fix ranges
-          return {
-            range: EditorSelection.range(range.from, range.from + insert.length),
-            changes: {
-              from: range.from,
-              to: range.to,
-              insert: insert,
-            },
-          };
-        });
+          const count = cmdCount(mode);
+          const yanks = yanksForSelection(view.state.selection, yanked);
 
-        view.dispatch({
-          ...tr,
-          effects: [...tr.effects, MODE_EFF.NORMAL],
-        });
+          const replacements =
+            count === 1 ? yanks : yanks.map((yank) => yank.toString().repeat(count));
+
+          const byIndex = new Map(
+            view.state.selection.ranges.map((range, i) => [range, i]),
+          );
+
+          const tr = view.state.changeByRange((range) => {
+            const insert = replacements[byIndex.get(range)!];
+
+            if (!insert) {
+              return { range };
+            }
+
+            // FIXME: fix ranges
+            return {
+              range: EditorSelection.range(range.from, range.from + insert.length),
+              changes: {
+                from: range.from,
+                to: range.to,
+                insert: insert,
+              },
+            };
+          });
+
+          view.dispatch({
+            ...tr,
+            effects: [...tr.effects, MODE_EFF.NORMAL],
+          });
+        }
       },
     },
     ["r"]: {
@@ -1313,26 +1325,26 @@ const helixCommandBindings: {
     },
     ["p"]: {
       checkpoint: true,
-      command(view) {
+      command(view, mode) {
         view.dispatch({ effects: MODE_EFF.NORMAL });
 
-        readClipboard(view.state)
-          .then((yanked) => paste(view, yanked, false, 1, { reset: false }))
-          .catch((error) => {
-            /* FIXME  */ console.error(error);
-          });
+        readRegister(
+          view.state,
+          (yanked) => paste(view, yanked, false, cmdCount(mode)),
+          "+",
+        ).catch((error) => getCommandPanel(view.original).showError(error.message));
       },
     },
     ["P"]: {
       checkpoint: true,
-      command(view) {
+      command(view, mode) {
         view.dispatch({ effects: MODE_EFF.NORMAL });
 
-        readClipboard(view.state)
-          .then((yanked) => paste(view, yanked, true, 1, { reset: false }))
-          .catch((error) => {
-            /* FIXME  */ console.error(error);
-          });
+        readRegister(
+          view.state,
+          (yanked) => paste(view, yanked, true, cmdCount(mode)),
+          "+",
+        ).catch((error) => getCommandPanel(view.original).showError(error.message));
       },
     },
     // FIXME: align with the non-clipboard one
@@ -1340,15 +1352,14 @@ const helixCommandBindings: {
       checkpoint: true,
       command(view) {
         view.dispatch({ effects: MODE_EFF.NORMAL });
-
-        readClipboard(view.state)
-          .then((yanked) => {
-            const tr = view.state.replaceSelection(yanked[0]);
+        readRegister(
+          view.state,
+          (yanked) => {
+            const tr = view.state.replaceSelection(yanked![0]);
             view.dispatch(tr);
-          })
-          .catch((error) => {
-            /* FIXME  */ console.error(error);
-          });
+          },
+          "+",
+        ).catch((error) => getCommandPanel(view.original).showError(error.message));
       },
     },
     ["f"](view, mode) {
@@ -1796,11 +1807,14 @@ export { externalCommandsFacet as externalCommands };
 /**
  * Exposes the contents of a given register for external consumption
  * for e.g. reading registers in external UI elements, suck as pickers.
+ *
+ * The special register '+' acts like a normal registry for the purposes
+ * of this function.
  */
 function externalReadRegister(state: EditorState, register: string) {
-  const contents = readRegister(state, register);
+  const contents = readSyncRegister(state, register);
 
-  return contents?.at(0);
+  return contents;
 }
 
 export { externalReadRegister as readRegister };

@@ -1,7 +1,13 @@
 import { EditorView, Panel } from "@codemirror/view";
 import { EditorSelection, type FacetReader, type Text } from "@codemirror/state";
 import type { TypableCommand } from "./lib";
-import { modeStatus, readRegister, registersHistoryField, yankEffect } from "./state";
+import {
+  modeStatus,
+  readRegister,
+  readSyncRegister,
+  registersHistoryField,
+  yankEffect,
+} from "./state";
 import { ModeState, SearchMode } from "./entities";
 
 const MOUNT_EVENT = "cm-hx-input-mounted";
@@ -301,7 +307,7 @@ export class CommandPanel implements Panel {
     let readingRegister = false;
 
     const input = this.createInput({
-      placeholder: readRegister(view.state, ":")?.at(0)?.toString(),
+      placeholder: readSyncRegister(view.state, ":")?.at(0)?.toString(),
       getHistory: () => this.view.state.field(registersHistoryField)[":"],
       onKeyDown(e) {
         if (e.isComposing) {
@@ -316,7 +322,13 @@ export class CommandPanel implements Panel {
         } else if (readingRegister && e.key.length === 1) {
           readingRegister = false;
 
-          input.value += readRegister(view.state, e.key)?.at(0)?.toString() ?? "";
+          readRegister(
+            view.state,
+            (yanked) => {
+              input.value += yanked?.at(0)?.toString() ?? "";
+            },
+            e.key,
+          );
         } else if (!readingRegister) {
           return;
         }
@@ -330,7 +342,7 @@ export class CommandPanel implements Panel {
             effects: yankEffect.of([":", [value]]),
           });
         } else if (commit) {
-          value = readRegister(view.state, ":")?.at(0)?.toString() ?? "";
+          value = readSyncRegister(view.state, ":")?.at(0)?.toString() ?? "";
         }
 
         const [cmd, ...args] = value.trimEnd().split(/ +/);
