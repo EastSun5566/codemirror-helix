@@ -143,6 +143,16 @@ const cases: Record<string, Case> = {
     ["C", "C", "Space", "y", "%", "d", "Space", "p"],
     "h",
   ],
+  "paste from clipboard, multiple selections, explicit register": [
+    ["hello", "world", "helix"],
+    ["C", "C", `"`, "+", "y", "g", "l", `"`, "+", "p"],
+    { text: ["helloh", "worldw", "helixh"], clipboard: ["h", "w", "h"] },
+  ],
+  "paste from clipboard, external override, explicit register": [
+    ["hello", "world", "helix"],
+    ["C", "C", `"`, "+", "y", "g", "l", { copy: "xx" }, `"`, "+", "p"],
+    ["helloxx", "worldxx", "helixxx"],
+  ],
   "surround add multiple selections": [
     ["xxxeyyy", "xxxxeyyy"],
     ["%", "s", "e", "Enter", "v", "l", "l", "m", "s", ")"],

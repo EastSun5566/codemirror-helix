@@ -102,38 +102,30 @@ export const yankEffect = StateEffect.define<
 >();
 
 // FIXME: handle '+'
-export function readRegister(
+export async function readRegister(
   state: EditorState,
   callback: (contents?: Array<string | Text>) => void,
   register?: string,
-): Promise<unknown> {
+) {
   switch (register) {
-    case "#": {
-      callback(state.selection.ranges.map((_, i) => String(i + 1)));
-      return Promise.resolve();
-    }
-    case "_": {
-      callback([]);
-      return Promise.resolve();
-    }
-    case ".": {
-      callback(
-        state.selection.ranges.map((range) => state.sliceDoc(range.from, range.to)),
-      );
-      return Promise.resolve();
-    }
-    case "%": {
-      const path = state.facet(pathRegister);
-
-      callback(path != null ? [path] : []);
-      return Promise.resolve();
-    }
     case "+": {
-      return readClipboard(state).then(callback);
+      const yanked = readSyncRegister(state, "+");
+
+      const copied = await navigator.clipboard.readText();
+
+      if (yanked?.map((yank) => yank.toString()).join("\n") === copied) {
+        callback(yanked);
+
+        return;
+      }
+
+      callback([copied]);
+
+      return;
     }
     default: {
-      callback(state.field(registersField)[register ?? state.facet(defaultYankRegister)]);
-      return Promise.resolve();
+      callback(readSyncRegister(state, register));
+      return;
     }
   }
 }
@@ -160,18 +152,6 @@ export function readSyncRegister(state: EditorState, register?: string) {
       return state.field(registersField)[register] as Array<string | Text> | undefined;
     }
   }
-}
-
-async function readClipboard(state: EditorState) {
-  const yanked = readSyncRegister(state, "+");
-
-  const copied = await navigator.clipboard.readText();
-
-  if (yanked?.map((yank) => yank.toString()).join("\n") === copied) {
-    return yanked;
-  }
-
-  return [copied];
 }
 
 export const registersField = StateField.define<Record<string, Array<string | Text>>>({
