@@ -472,19 +472,25 @@ const optionsEl = document.querySelector("#options")! as HTMLElement;
         continue;
       }
 
-      if (el instanceof HTMLSelectElement) {
+      if (el instanceof HTMLSelectElement || el instanceof HTMLInputElement) {
         el.value = value as string;
       }
     }
   }
 
+  function onChange() {
+    const config = configFromInput();
+    if (config) {
+      localStorage.setItem("cm-hx-config", JSON.stringify(config));
+      window.location.reload();
+    }
+  }
+
   for (const control of optionsEl.querySelectorAll("[data-option]")) {
     if (control instanceof HTMLSelectElement) {
-      control.onchange = () => {
-        const config = configFromInput();
-        localStorage.setItem("cm-hx-config", JSON.stringify(config));
-        window.location.reload();
-      };
+      control.onchange = onChange;
+    } else if (control instanceof HTMLInputElement) {
+      control.oninput = onChange;
     }
   }
 }
@@ -498,6 +504,12 @@ function configFromInput() {
       config[control.name] = ([...control.children] as HTMLOptionElement[]).find(
         (opt) => opt.selected,
       )!.value;
+    } else if (control instanceof HTMLInputElement) {
+      if (!control.validity.valid) {
+        return null;
+      }
+
+      config[control.name] = control.value;
     }
   }
 
