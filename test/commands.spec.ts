@@ -1,3 +1,4 @@
+/// <reference types="@wdio/mocha-framework" />
 import { expect, browser, $ } from "@wdio/globals";
 import { Key } from "webdriverio";
 

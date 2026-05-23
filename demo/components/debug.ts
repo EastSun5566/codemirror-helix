@@ -6,10 +6,10 @@ declare global {
   }
 }
 export class Debug extends HTMLElement {
-  #register: HTMLDivElement;
-  #history: HTMLDivElement;
-  #selection: HTMLDivElement;
-  #theme: HTMLDivElement;
+  #register!: HTMLDivElement;
+  #history!: HTMLDivElement;
+  #selection!: HTMLDivElement;
+  #theme!: HTMLDivElement;
 
   connectedCallback() {
     if (this.#register) {

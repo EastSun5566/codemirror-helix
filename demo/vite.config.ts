@@ -55,7 +55,7 @@ function importFolderAsJson(): PluginOption {
           };
         }
 
-        const result = {};
+        const result: Record<string, string> = {};
 
         await Promise.all(
           files.map(async (file) => {

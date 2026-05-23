@@ -1,5 +1,7 @@
 #!/usr/bin/env sh
 
+set -e
+
 ENV_VAR=process.env.NODE_ENV
 
 rm -rf dist/
@@ -21,7 +23,7 @@ echo
 echo Generating declarations
 echo
 
-npm exec --no tsc -- --noEmit false --declaration --emitDeclarationOnly --outDir $DECL_OUT
+npm exec --no tsc -- --noEmit false --declaration --emitDeclarationOnly --outDir $DECL_OUT --rootDir src/ --stripInternal
 
 cp $DECL_OUT/lib.d.ts dist/
 

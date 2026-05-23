@@ -8,11 +8,11 @@ declare global {
   }
 }
 
-const SENTINEL = [];
+const SENTINEL: any[] = [];
 
 export class Picker extends HTMLElement {
-  #input: HTMLInputElement;
-  #ul: HTMLUListElement;
+  #input!: HTMLInputElement;
+  #ul!: HTMLUListElement;
   #options: Array<{ value: string; label?: string | undefined }> = SENTINEL;
   #selected = 0;
   #visible: number[] = [];

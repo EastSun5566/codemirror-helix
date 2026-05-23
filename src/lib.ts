@@ -118,6 +118,15 @@ import {
 } from "./commands";
 import { backwardsSearch } from "./search";
 
+/**
+ * @internal
+ */
+declare global {
+  var process: {
+    env: any;
+  };
+}
+
 function startSearch(view: EditorView, mode: SearchMode) {
   const initialScroll = view.scrollSnapshot();
   const initialSelection = view.state.selection;
