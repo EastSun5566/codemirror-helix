@@ -149,7 +149,24 @@ export class CommandPanel implements Panel {
   showSearchInput(mode = SearchMode.Normal) {
     const input = this.searchInput(mode);
 
-    this.showInput(input, mode === SearchMode.Global ? "global-search:" : "search:");
+    let label: string;
+
+    switch (mode) {
+      case SearchMode.Normal: {
+        label = "search:";
+        break;
+      }
+      case SearchMode.Global: {
+        label = "global-search:";
+        break;
+      }
+      case SearchMode.Selection: {
+        label = "select:";
+        break;
+      }
+    }
+
+    this.showInput(input, label);
   }
 
   showCommandInput() {
