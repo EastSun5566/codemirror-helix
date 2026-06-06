@@ -66,5 +66,8 @@
   },
   "prettier": {
     "printWidth": 90
+  },
+  "overrides": {
+    "yauzl": "3.3.1"
   }
 }
