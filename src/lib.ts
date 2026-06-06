@@ -115,6 +115,7 @@ import {
   extendToDelimiters,
   nextClusterBreak,
   rangeIsForward,
+  resetCountAndRegister,
 } from "./commands";
 import { backwardsSearch } from "./search";
 
@@ -211,11 +212,17 @@ function startSearch(view: EditorView, mode: SearchMode) {
       if (match.done) {
         reset();
       } else {
-        const selection = EditorSelection.range(match.value.from, match.value.to);
+        const mode = view.state.field(modeField);
+        const matchedSelection = EditorSelection.range(match.value.from, match.value.to);
+
+        const selection =
+          mode.type === ModeType.Select
+            ? initialSelection.addRange(matchedSelection)
+            : matchedSelection;
 
         view.dispatch({
           selection,
-          effects: EditorView.scrollIntoView(selection, { y: "center" }),
+          effects: EditorView.scrollIntoView(matchedSelection, { y: "center" }),
         });
       }
     },
@@ -818,21 +825,22 @@ const helixCommandBindings: {
     ["n"](view, mode) {
       const query = view.state.facet(searchFacet);
 
+      view.dispatch({
+        effects: resetCountAndRegister(mode),
+      });
+
       if (!query?.valid) {
         if (query) {
           showSearchError(view, query);
         }
-
-        view.dispatch({
-          effects: resetCount(mode),
-        });
 
         return true;
       }
 
       let cursor = query.getCursor(view.state, view.state.selection.main.to);
 
-      let match;
+      let match: ReturnType<(typeof cursor)["next"]>;
+      const matches: Array<{ from: number; to: number }> = [];
 
       let found = false;
       let wrapped = false;
@@ -848,6 +856,10 @@ const helixCommandBindings: {
           found ||= !match.done;
         }
 
+        if (!match.done) {
+          matches.push(match.value);
+        }
+
         if (!found) {
           getCommandPanel(view).showError("No more matches");
 
@@ -855,12 +867,15 @@ const helixCommandBindings: {
         }
       }
 
-      const newRange = EditorSelection.range(match!.value.from, match!.value.to);
-
-      let newSel: EditorSelection | SelectionRange = newRange;
-
-      if (mode.type === ModeType.Select) {
-        newSel = view.state.selection.addRange(newRange);
+      let newSel = view.state.selection;
+      const isSelect = mode.type === ModeType.Select;
+      for (const match of matches) {
+        const range = EditorSelection.range(match.from, match.to);
+        if (isSelect) {
+          newSel = newSel.addRange(range);
+        } else {
+          newSel = newSel.replaceRange(range);
+        }
       }
 
       view.dispatch({
@@ -887,12 +902,32 @@ const helixCommandBindings: {
         return true;
       }
 
-      const result = backwardsSearch(view.state, query, mode, (match) => {
-        const selection = EditorSelection.range(match.from, match.to);
+      const isSelect = mode.type === ModeType.Select;
+
+      const result = backwardsSearch(view.state, query, mode, (matches, main) => {
+        let selection: EditorSelection | SelectionRange = view.state.selection;
+        let matchedRange = selection.main;
+
+        for (let i = matches.length - 1; i >= 0; i--) {
+          const match = matches[i];
+          matchedRange = EditorSelection.range(match.from, match.to);
+          selection = isSelect
+            ? selection.addRange(matchedRange)
+            : selection.replaceRange(matchedRange);
+        }
+
+        if (main != null) {
+          const match = matches[(matches.length - main) % matches.length];
+
+          matchedRange = EditorSelection.range(match.from, match.to);
+          selection = isSelect
+            ? selection.addRange(matchedRange)
+            : selection.replaceRange(matchedRange);
+        }
 
         view.dispatch({
           selection: selection,
-          effects: EditorView.scrollIntoView(selection, { y: "center" }),
+          effects: EditorView.scrollIntoView(matchedRange, { y: "center" }),
         });
       });
 
@@ -903,7 +938,7 @@ const helixCommandBindings: {
       }
 
       view.dispatch({
-        effects: resetCount(mode),
+        effects: resetCountAndRegister(mode),
       });
     },
     ["Ctrl-a"]: {
@@ -2174,7 +2209,12 @@ export function helix(options: Options = {}): Extension {
     initialRegistersHistory
       ? registersHistoryField.init(() => initialRegistersHistory)
       : registersHistoryField,
-    searchFacet.from(registersField, (registers) => registers["/"]?.toString()),
+    searchFacet.compute([registersField, modeField], (state) => {
+      const modeState = state.field(modeField);
+      const register =
+        modeState.type === ModeType.Insert ? undefined : modeState.register;
+      return state.field(registersField)[register ?? "/"]?.toString();
+    }),
     unhandledCommandsFilter,
     selectByClickFilter,
     expectingInputHandler,

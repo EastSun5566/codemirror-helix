@@ -5,14 +5,13 @@ import { EditorState } from "@codemirror/state";
 
 type Match = { from: number; to: number };
 
+// FIXME: this is, of course, abysmal for performance
 export function backwardsSearch(
   state: EditorState,
   query: SearchQuery,
   mode: NonInsertMode,
-  select: (match: Match) => void,
+  select: (matches: Match[], main?: number) => void,
 ) {
-  type Match = { from: number; to: number };
-
   const cursor = query.getCursor(state);
   const selection = state.selection.main;
 
@@ -22,26 +21,18 @@ export function backwardsSearch(
   const iter = peekable(cloned(cursor));
   const beforeIter = peekingUntil(iter, (item) => item.to >= selection.from);
 
-  for (const item of {
-    [Symbol.iterator]() {
-      return beforeIter;
-    },
-  }) {
+  for (const item of beforeIter) {
     beforeRing.push(item);
   }
 
   if (beforeRing.length === count) {
-    select(beforeRing.first);
+    select([...beforeRing]);
     return;
   }
 
   const afterRing = new Ring<Match>(count - beforeRing.length);
 
-  for (const item of {
-    [Symbol.iterator]() {
-      return iter;
-    },
-  }) {
+  for (const item of iter) {
     afterRing.push(item);
   }
 
@@ -54,33 +45,31 @@ export function backwardsSearch(
   }
 
   if (total === count) {
-    select(afterRing.first);
+    select([...afterRing, ...beforeRing]);
     return {
       wrapped: true as const,
     };
   }
 
-  const all = [...beforeRing, ...afterRing];
   const rem = count % total;
 
-  select(all[all.length - rem - 1]);
+  select([...afterRing, ...beforeRing], rem);
 
   return {
     wrapped: true as const,
   };
 }
 
-class Ring<T> {
+export class Ring<T> {
   items: T[];
-  head: number;
-  length: number;
+  head = 0;
+  length = 0;
+  filled = false;
   maxLength: number;
 
   constructor(length: number) {
     this.items = Array.from({ length });
     this.maxLength = length;
-    this.head = 0;
-    this.length = 0;
   }
 
   get first() {
@@ -92,6 +81,7 @@ class Ring<T> {
     this.head += 1;
     this.length += 1;
 
+    this.filled ||= this.length > this.maxLength;
     this.head %= this.maxLength;
     this.length = Math.min(this.maxLength, this.length);
   }
@@ -110,10 +100,10 @@ class Ring<T> {
   }
 
   private get start() {
-    if (this.length < this.maxLength) {
-      return 0;
+    if (this.filled) {
+      return this.head;
     } else {
-      return (this.head + 1) % this.maxLength;
+      return 0;
     }
   }
 }
@@ -122,7 +112,10 @@ function peekingUntil<T, R, N>(
   iter: ReturnType<typeof peekable<T, R, N>>,
   check: (next: T) => boolean,
 ) {
-  return {
+  const wrapped = {
+    [Symbol.iterator]() {
+      return wrapped;
+    },
     next() {
       const item = iter.peek();
 
@@ -137,12 +130,17 @@ function peekingUntil<T, R, N>(
       return iter.next();
     },
   };
+
+  return wrapped;
 }
 
 function peekable<T, R, N>(iter: Iterator<T, R, N>) {
   let next = iter.next();
 
   const peekIter = {
+    [Symbol.iterator]() {
+      return peekIter;
+    },
     next() {
       const item = next;
 

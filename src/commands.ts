@@ -1181,6 +1181,12 @@ export function resetCount(mode: NonInsertMode) {
   return modeEffect.of(rest);
 }
 
+export function resetCountAndRegister(mode: NonInsertMode) {
+  const { count: _count, register: _register, ...rest } = mode;
+
+  return modeEffect.of(rest);
+}
+
 export function rangeIsForward(range: SelectionRange) {
   return range.head > range.from;
 }

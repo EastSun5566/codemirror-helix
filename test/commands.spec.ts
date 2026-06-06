@@ -12,6 +12,8 @@ type Expectation =
   | {
       // the final selection, described as an [anchor, head], or an array of such (for multi-selections).
       selection?: [anchor: number, head: number] | Array<[anchor: number, head: number]>;
+      // the index of the main selection
+      main?: number;
       // the final contents of the editor
       text?: Text;
       // the contents of the clipboard
@@ -84,6 +86,87 @@ const cases: Record<string, Case> = {
     Array.from({ length: 200 }, (_, count) => String(count + 1).padStart(3, "0")),
     ["/", "0", "5", "0", "Enter", "/", "1", "3", "0", "Escape"],
     { selection: [196, 199] },
+  ],
+  "search, empty input": [
+    ["hello", "world"],
+    ["w", "/", "w", "o", "Backspace", "Backspace"],
+    {
+      selection: [6, 7],
+    },
+  ],
+  "search, custom register": [
+    ["hello", "world", "helix", "rocks"],
+    ["y", `"`, `"`, "n"],
+    {
+      selection: [12, 13],
+    },
+  ],
+  "search, selection mode": [
+    ["hello", "world", "helix", "rocks"],
+    ["w", "v", "/", "r", "o", "Enter"],
+    {
+      selection: [
+        [0, 5],
+        [18, 20],
+      ],
+      main: 1,
+    },
+  ],
+  "search, selection mode, multiple": [
+    ["hello", "world", "helix", "rocks"],
+    ["%", "s", "h", "e", "Enter", "v", "/", "w", "Enter"],
+    {
+      selection: [
+        [0, 2],
+        [6, 7],
+        [12, 14],
+      ],
+      main: 1,
+    },
+  ],
+  "search, selection mode, next": [
+    ["hello", "world", "helix", "rocks"],
+    ["/", "l", "Enter", "v", "n"],
+    {
+      selection: [
+        [2, 3],
+        [3, 4],
+      ],
+      main: 1,
+    },
+  ],
+  "search, selection mode, prev": [
+    ["hello", "world", "helix", "rocks"],
+    ["j", "j", "/", "l", "Enter", "v", "N"],
+    {
+      selection: [
+        [9, 10],
+        [14, 15],
+      ],
+      main: 0,
+    },
+  ],
+  "search, normal mode, deselect": [
+    ["hello", "world", "helix", "rocks"],
+    ["%", "s", "e", "|", "w", "Enter", "n"],
+    {
+      selection: [
+        [6, 7],
+        [13, 14],
+      ],
+      main: 0,
+    },
+  ],
+  "search, normal mode, skip over": [
+    ["hello", "world", "helix", "rocks"],
+    ["v", "l", "*", "v", "h", "j", "v", "l", "N", "v", "n"],
+    {
+      selection: [
+        [6, 8],
+        [12, 14],
+      ],
+      main: 1,
+    },
   ],
   "delete repeatedly": ["hello world", ["5", "l", "d", "d", "d"], "hellorld"],
   "join lines": [
@@ -370,13 +453,14 @@ describe("codemirror-helix", () => {
 
       await (SLOW ? wait(1000) : undefined);
 
-      const [expectedSelection, expectedText, expectedClipboard] =
+      const [expectedSelection, expectedText, expectedClipboard, expectedMain] =
         typeof expected === "string" || Array.isArray(expected)
-          ? [null, textToString(expected), null]
+          ? [null, textToString(expected), null, null]
           : [
               expected.selection,
               expected.text && textToString(expected.text),
               expected.clipboard && textToString(expected.clipboard),
+              expected.main,
             ];
 
       if (expectedSelection != null) {
@@ -389,6 +473,12 @@ describe("codemirror-helix", () => {
         ).map(([anchor, head]) => ({ anchor, head }));
 
         expect((selection as any).ranges).toEqual(expectation);
+      }
+
+      if (expectedMain != null) {
+        const selection = await getSelection();
+
+        expect((selection as any).main).toEqual(expectedMain);
       }
 
       if (expectedText != null) {
