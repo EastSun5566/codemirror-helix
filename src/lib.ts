@@ -1317,7 +1317,7 @@ const helixCommandBindings: {
 
         if (!isNormal) {
           const bracketCursor = bracketSelection.from;
-          const internal = cmSelToInternal(view.state.selection.main, view.state.doc);
+          const internal = cmSelToInternal(view.state.selection.main, view);
 
           selection = internalSelToCM(
             EditorSelection.range(internal.anchor, bracketCursor),

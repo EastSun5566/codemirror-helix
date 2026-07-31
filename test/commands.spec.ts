@@ -1,6 +1,7 @@
 /// <reference types="@wdio/mocha-framework" />
 import { expect, browser, $ } from "@wdio/globals";
 import { Key } from "webdriverio";
+import * as assert from "node:assert";
 
 // An expectation is either:
 // - The final contents of the the document, or
@@ -37,7 +38,8 @@ type Command =
   // a key to send to the editor (e.g. "a" or "Alt-C")
   | string
   // instructs the browser to enter that text into the clipboard
-  | { copy: string };
+  | { copy: string }
+  | { wrap: number };
 
 // How to write a test case
 //
@@ -412,6 +414,36 @@ const cases: Record<string, Case> = {
       ],
     },
   ],
+  "move vertically with wrapped lines, last line": [
+    ["hello", `world${"d".repeat(200)}`],
+    [{ wrap: 3 }, "j", "j", "k"],
+    { selection: [7, 6] },
+  ],
+  "move vertically with wrapped lines": [
+    ["hello", `world${"d".repeat(200)}`, "bye"],
+    [{ wrap: 4 }, "j", "j", "k"],
+    { selection: [7, 6] },
+  ],
+  "move around visual line end": [
+    ["hello", `world${"d".repeat(200)}`],
+    [{ wrap: 3 }, "j", "j", "h", "h", "l", "l", "k"],
+    { selection: [7, 6] },
+  ],
+  "select vertically with wrapped lines, last line": [
+    ["hello", `world${"d".repeat(200)}`],
+    [{ wrap: 3 }, "j", "v", "j", "k"],
+    { selection: [7, 6] },
+  ],
+  "select vertically with wrapped lines": [
+    ["hello", `world${"d".repeat(200)}`, "bye"],
+    [{ wrap: 4 }, "j", "v", "j", "k"],
+    { selection: [7, 6] },
+  ],
+  "select around visual line end": [
+    ["hello", `world${"d".repeat(200)}`],
+    [{ wrap: 3 }, "j", "v", "j", "h", "h", "l", "l", "k"],
+    { selection: [7, 6] },
+  ],
 };
 
 describe("codemirror-helix", () => {
@@ -435,6 +467,10 @@ describe("codemirror-helix", () => {
 
     const itFn = mode == null ? it : mode === true ? it.only : it.skip;
 
+    before(async () => {
+      await browser.setWindowSize(1000, 800);
+    });
+
     itFn(title, async () => {
       await browser.url("http://localhost:45183");
 
@@ -444,14 +480,24 @@ describe("codemirror-helix", () => {
         await (SLOW ? wait(1000) : undefined);
         if ("key" in command) {
           await browser.keys(command.key);
-        } else {
+        } else if ("copy" in command) {
           await browser.execute(
             `navigator.clipboard.writeText(${JSON.stringify(command.copy)})`,
+          );
+        } else {
+          const lines = await browser.execute<number, []>("return lineWrap()");
+          assert.equal(
+            lines,
+            command.wrap,
+            new Error(`expected wrapping to be ${command.wrap}, got ${lines}`),
           );
         }
       }
 
       await (SLOW ? wait(1000) : undefined);
+
+      const error = browser.$("#error");
+      await expect(error).toHaveText("");
 
       const [expectedSelection, expectedText, expectedClipboard, expectedMain] =
         typeof expected === "string" || Array.isArray(expected)
@@ -522,8 +568,7 @@ function getSelection() {
 }
 
 function parseCommands(commands: Command[]) {
-  const parsed: Array<Extract<Command, { copy: string }> | { key: string | string[] }> =
-    [];
+  const parsed: Array<Exclude<Command, string> | { key: string | string[] }> = [];
 
   for (const command of commands) {
     if (typeof command === "object") {

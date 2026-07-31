@@ -54,9 +54,7 @@ function moveByChar(view: EditorView, mode: NonInsertMode, forward: boolean) {
 
 export function withHelixSelection(view: EditorView, command: Command) {
   view.dispatch({
-    selection: mapSel(view.state.selection, (range) =>
-      cmSelToInternal(range, view.state.doc),
-    ),
+    selection: mapSel(view.state.selection, (range) => cmSelToInternal(range, view)),
   });
 
   const result = command(view);
@@ -70,19 +68,31 @@ export function withHelixSelection(view: EditorView, command: Command) {
   return result;
 }
 
-export function cmSelToInternal(range: SelectionRange, doc: Text) {
+export function cmSelToInternal(range: SelectionRange, viewOrDoc: EditorView | Text) {
   if (range.empty) {
     return range;
   }
 
+  const [doc, view] =
+    viewOrDoc instanceof EditorView
+      ? [viewOrDoc.state.doc, viewOrDoc]
+      : [viewOrDoc, null];
+
+  const boundary = view?.moveToLineBoundary(
+    EditorSelection.cursor(range.to),
+    false,
+    true,
+  );
   const end = nextClusterBreak(doc, range.to, false);
   const [anchor, head] = rangeIsForward(range) ? [range.from, end] : [end, range.from];
+  const assoc = boundary?.from === end ? 1 : undefined;
 
   return EditorSelection.range(
     anchor,
     head,
     range.goalColumn,
     range.bidiLevel ?? undefined,
+    assoc,
   );
 }
 
@@ -155,7 +165,7 @@ export function cursorToFirstNonBlank(view: EditorView, mode: NonInsertMode) {
   const isNormal = mode.type === ModeType.Normal;
 
   const newSelection = mapSel(view.state.selection, (range) => {
-    const selection = cmSelToInternal(range, view.state.doc);
+    const selection = cmSelToInternal(range, view);
     const doc = view.state.doc;
 
     const line = doc.lineAt(selection.head);
@@ -177,8 +187,15 @@ export function cursorToFirstNonBlank(view: EditorView, mode: NonInsertMode) {
   });
 }
 
-function cursorToLineEndRange(range: SelectionRange, view: ViewLike, mode: ModeType) {
-  const selection = cmSelToInternal(range, view.state.doc);
+function cursorToLineEndRange(
+  range: SelectionRange,
+  view: ViewProxy | EditorView,
+  mode: ModeType,
+) {
+  const selection = cmSelToInternal(
+    range,
+    view instanceof EditorView ? view : view.original,
+  );
 
   const line = view.state.doc.lineAt(selection.head);
 
@@ -194,7 +211,11 @@ function cursorToLineEndRange(range: SelectionRange, view: ViewLike, mode: ModeT
     : EditorSelection.cursor(goal, undefined, undefined, selection.goalColumn);
 }
 
-export function cursorToLineEnd(view: ViewLike, mode: NonInsertMode, insert?: boolean) {
+export function cursorToLineEnd(
+  view: ViewProxy | EditorView,
+  mode: NonInsertMode,
+  insert?: boolean,
+) {
   const select = mode.type === ModeType.Select;
 
   view.dispatch({
@@ -229,7 +250,7 @@ function cursorByChar(view: EditorView, mode: NonInsertMode, forward: boolean) {
           }
         : undefined;
 
-    const cursor = cmSelToInternal(range, doc).head;
+    const cursor = cmSelToInternal(range, view).head;
 
     const moved = view.moveByChar(EditorSelection.cursor(cursor), forward, by);
 
@@ -242,7 +263,7 @@ function selectByChar(view: EditorView, mode: NonInsertMode, forward: boolean) {
   const count = cmdCount(mode);
 
   return mapSel(view.state.selection, (range) => {
-    const initial = cmSelToInternal(range, doc);
+    const initial = cmSelToInternal(range, view);
 
     let counter = count;
 
@@ -266,14 +287,14 @@ function selectByLine(view: EditorView, mode: NonInsertMode, forward: boolean) {
   const count = cmdCount(mode);
 
   return mapSel(view.state.selection, (range) => {
-    const initial = cmSelToInternal(range, doc);
+    const initial = cmSelToInternal(range, view);
     let selection = initial;
 
     for (let _i = 0; _i < count; _i++) {
       selection = view.moveVertically(
         EditorSelection.cursor(
           selection.head,
-          undefined,
+          selection.assoc,
           undefined,
           selection.goalColumn,
         ),
@@ -282,7 +303,13 @@ function selectByLine(view: EditorView, mode: NonInsertMode, forward: boolean) {
     }
 
     return internalSelToCM(
-      EditorSelection.range(initial.anchor, selection.head, selection.goalColumn),
+      EditorSelection.range(
+        initial.anchor,
+        selection.head,
+        selection.goalColumn,
+        undefined,
+        selection.assoc,
+      ),
       doc,
     );
   });
@@ -293,28 +320,51 @@ function cursorByLine(view: EditorView, mode: NonInsertMode, forward: boolean) {
   const count = cmdCount(mode);
 
   return mapSel(view.state.selection, (range) => {
-    const selection = cmSelToInternal(range, doc);
+    const selection = cmSelToInternal(range, view);
     let cursor = selection.head;
     let goalColumn = selection.goalColumn;
+    let assoc = selection.assoc;
 
     for (let _i = 0; _i < count; _i++) {
-      const line = doc.lineAt(cursor).number;
+      const line = doc.lineAt(cursor);
+      const lineNo = line.number;
 
-      if ((forward && line === doc.lines) || (!forward && line === 1)) {
-        break;
+      if (forward && lineNo === doc.lines) {
+        const boundary = view.moveToLineBoundary(
+          EditorSelection.cursor(cursor),
+          forward,
+          true,
+        );
+
+        if (boundary.to === line.to) {
+          break;
+        }
+      } else if (!forward && lineNo === 1) {
+        const boundary = view.moveToLineBoundary(
+          EditorSelection.cursor(cursor),
+          forward,
+          true,
+        );
+
+        if (boundary.from === 0) {
+          break;
+        }
       }
 
       const next = view.moveVertically(
-        EditorSelection.cursor(cursor, undefined, undefined, goalColumn),
+        EditorSelection.cursor(cursor, assoc, undefined, goalColumn),
         forward,
       );
 
+      console.log({ assoc, next: next.from, cursor });
+
       cursor = next.to;
+      assoc = next.assoc;
       goalColumn = next.goalColumn;
     }
 
     return internalSelToCM(
-      EditorSelection.cursor(cursor, undefined, undefined, goalColumn),
+      EditorSelection.cursor(cursor, assoc, undefined, goalColumn),
       doc,
     );
   });
@@ -338,7 +388,7 @@ export function moveByHalfPage(view: EditorView, mode: NonInsertMode, forward: b
 function cursorByHalfPage(view: EditorView, forward: boolean) {
   return mapSel(view.state.selection, (range) => {
     const doc = view.state.doc;
-    const selection = cmSelToInternal(range, doc);
+    const selection = cmSelToInternal(range, view);
 
     const lineBlock = view.lineBlockAt(doc.lineAt(selection.head).from);
     const end = view.lineBlockAt(forward ? doc.length : 0);
@@ -365,7 +415,7 @@ function cursorByHalfPage(view: EditorView, forward: boolean) {
 function selectByHalfPage(view: EditorView, forward: boolean) {
   return mapSel(view.state.selection, (range) => {
     const doc = view.state.doc;
-    const selection = cmSelToInternal(range, doc);
+    const selection = cmSelToInternal(range, view);
 
     const lineBlock = view.lineBlockAt(doc.lineAt(selection.head).from);
     const end = view.lineBlockAt(forward ? doc.length : 0);
@@ -464,7 +514,7 @@ function findText(
   const count = mode.type === ModeType.Insert ? 1 : cmdCount(mode);
 
   const newSelection = mapSel(view.state.selection, (range) => {
-    const selection = cmSelToInternal(range, view.state.doc);
+    const selection = cmSelToInternal(range, view);
     const doc = view.state.doc;
 
     const start = selection.head;
@@ -714,7 +764,7 @@ export function matchInBrackets(view: EditorView, inclusive: boolean) {
 
 export function matchBracket(view: EditorView) {
   return view.state.selection.ranges.map((range) => {
-    const internal = cmSelToInternal(range, view.state.doc);
+    const internal = cmSelToInternal(range, view);
     const collapsed = internalSelToCM(
       EditorSelection.range(internal.head, internal.head),
       view.state.doc,
@@ -1087,12 +1137,12 @@ export function changeNumber(view: ViewLike, increase: boolean) {
   );
 }
 
-export function openLine(view: ViewLike, below: boolean) {
+export function openLine(view: ViewProxy, below: boolean) {
   let from: number;
   let cursor: number;
 
   // FIXME: consider multiple selections
-  const selection = cmSelToInternal(view.state.selection.main, view.state.doc);
+  const selection = cmSelToInternal(view.state.selection.main, view.original);
 
   if (below) {
     const line = view.state.doc.lineAt(selection.to);
@@ -1255,12 +1305,6 @@ export function mapSel(
   selection: EditorSelection,
   mapper: (range: SelectionRange) => SelectionRange,
 ) {
-  if (selection.ranges.length === 1) {
-    const mapped = mapper(selection.main);
-
-    return EditorSelection.single(mapped.anchor, mapped.head);
-  }
-
   return EditorSelection.create(selection.ranges.map(mapper), selection.mainIndex);
 }
 
