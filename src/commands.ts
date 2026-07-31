@@ -229,6 +229,7 @@ export function cursorToLineEnd(
       return insert ? next : internalSelToCM(next, view.state.doc);
     }),
     effects: insert ? MODE_EFF.INSERT : select ? MODE_EFF.SELECT : MODE_EFF.NORMAL,
+    scrollIntoView: true,
   });
 
   return true;
@@ -355,8 +356,6 @@ function cursorByLine(view: EditorView, mode: NonInsertMode, forward: boolean) {
         EditorSelection.cursor(cursor, assoc, undefined, goalColumn),
         forward,
       );
-
-      console.log({ assoc, next: next.from, cursor });
 
       cursor = next.to;
       assoc = next.assoc;
