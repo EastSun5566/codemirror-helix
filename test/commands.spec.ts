@@ -444,6 +444,12 @@ const cases: Record<string, Case> = {
     [{ wrap: 3 }, "j", "v", "j", "h", "h", "l", "l", "k"],
     { selection: [7, 6] },
   ],
+  "select vertically from last line stops": [
+    FIXME,
+    ["hello", "world"],
+    ["v", "j", "j"],
+    { selection: [0, 6] },
+  ],
 };
 
 describe("codemirror-helix", () => {

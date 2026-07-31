@@ -192,6 +192,8 @@ async function createViewPanel(file: string) {
 async function createView(file: string, doc: string, parent: HTMLElement) {
   debugEl.theme = currentTheme;
 
+  const config = configFromInput();
+
   const view = new codemirror.EditorView({
     state: codemirror.EditorState.create({
       doc,
@@ -349,8 +351,9 @@ async function createView(file: string, doc: string, parent: HTMLElement) {
             ...theme,
             extension: theme.extension(codemirror),
           })),
-          config: { ...configFromInput(), theme: currentTheme },
+          config: { ...config, theme: currentTheme },
         }),
+        config?.["playground.line-wrap"] ? [codemirror.EditorView.lineWrapping] : [],
         codemirror.themeListener.of((theme) => {
           localStorage.setItem("cm-hx-theme", theme.name);
           debugEl.theme = theme.name;
@@ -473,7 +476,11 @@ const optionsEl = document.querySelector("#options")! as HTMLElement;
       }
 
       if (el instanceof HTMLSelectElement || el instanceof HTMLInputElement) {
-        el.value = value as string;
+        if (el.type === "checkbox") {
+          el.checked = value as boolean;
+        } else {
+          el.value = value as string;
+        }
       }
     }
   }
@@ -496,7 +503,7 @@ const optionsEl = document.querySelector("#options")! as HTMLElement;
 }
 
 function configFromInput() {
-  const config: Record<string, string> = {};
+  const config: Record<string, string | boolean> = {};
   const controls = optionsEl.querySelectorAll("[data-option]");
 
   for (const control of controls) {
@@ -509,7 +516,8 @@ function configFromInput() {
         return null;
       }
 
-      config[control.name] = control.value;
+      config[control.name] =
+        control.type === "checkbox" ? control.checked : control.value;
     }
   }
 
