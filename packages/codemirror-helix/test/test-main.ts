@@ -6,7 +6,7 @@ import { javascript } from "@codemirror/lang-javascript";
 declare global {
   interface Window {
     view?: EditorView;
-    initEditor(doc: string, lang: string | null): void;
+    initEditor(doc: string, lang: string | null): Promise<void>;
     lineWrap(): Promise<number>;
   }
 }
@@ -18,7 +18,7 @@ const languages: Record<string, () => Extension> = {
 let view: EditorView | null = null;
 let compartment: Compartment | undefined;
 
-function initEditor(doc: string, lang: string | null) {
+async function initEditor(doc: string, lang: string | null) {
   const language = lang != null ? languages[lang] : null;
   const parent = document.querySelector("#editor")!;
 
@@ -33,6 +33,7 @@ function initEditor(doc: string, lang: string | null) {
     extensions: [helix(), ...(language ? [language()] : []), compartment.of([])],
   });
 
+  await new Promise<void>((resolve) => setTimeout(resolve, 0));
   view.focus();
 
   window.view = view;
