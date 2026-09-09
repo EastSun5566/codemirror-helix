@@ -20,12 +20,16 @@ let compartment: Compartment | undefined;
 
 function initEditor(doc: string, lang: string | null) {
   const language = lang != null ? languages[lang] : null;
+  const parent = document.querySelector("#editor")!;
+
+  view?.destroy();
+  parent.replaceChildren();
 
   compartment = new Compartment();
 
   view = new EditorView({
     doc,
-    parent: document.querySelector("#editor")!,
+    parent,
     extensions: [helix(), ...(language ? [language()] : []), compartment.of([])],
   });
 
