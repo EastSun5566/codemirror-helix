@@ -1,0 +1,8 @@
+{
+  "name": "codemirror-helix-cm5-consumer-test",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}
