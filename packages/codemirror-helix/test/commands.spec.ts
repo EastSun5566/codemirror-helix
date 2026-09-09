@@ -495,6 +495,9 @@ describe("codemirror-helix", () => {
         await (SLOW ? wait(1000) : undefined);
         if ("key" in command) {
           await browser.keys(command.key);
+          await browser.execute(
+            "return new Promise((resolve) => requestAnimationFrame(() => resolve()))",
+          );
         } else if ("copy" in command) {
           await browser.execute(
             `navigator.clipboard.writeText(${JSON.stringify(command.copy)})`,
