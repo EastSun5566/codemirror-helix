@@ -2,6 +2,7 @@
 import { expect, browser, $ } from "@wdio/globals";
 import { Key } from "webdriverio";
 import * as assert from "node:assert";
+import portableCases from "../../../test/fixtures/portable-cases.json";
 
 // An expectation is either:
 // - The final contents of the the document, or
@@ -451,6 +452,14 @@ const cases: Record<string, Case> = {
     { selection: [0, 6] },
   ],
 };
+
+for (const fixture of portableCases) {
+  cases[`portable: ${fixture.name}`] = [
+    fixture.initial,
+    fixture.actions.map((action) => ("key" in action ? action.key : action.insert)),
+    fixture.expected,
+  ];
+}
 
 describe("codemirror-helix", () => {
   for (const [title, case_] of Object.entries(cases)) {

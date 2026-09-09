@@ -14,7 +14,7 @@ export default defineConfig({
 async function listFiles(cwd: string) {
   console.log(`listing files under ${cwd}`);
 
-  const child = spawn("git", ["ls-tree", "-r", "HEAD", "--name-only"], {
+  const child = spawn("git", ["ls-files", "--cached", "--others", "--exclude-standard"], {
     cwd,
     stdio: ["pipe", "pipe", "inherit"],
   });
@@ -59,9 +59,15 @@ function importFolderAsJson(): PluginOption {
 
         await Promise.all(
           files.map(async (file) => {
-            const contents = await readFile(join(folder, file), "utf8");
-
-            result[file] = contents;
+            try {
+              result[file] = await readFile(join(folder, file), "utf8");
+            } catch (error) {
+              if (
+                !(error instanceof Error && "code" in error && error.code === "ENOENT")
+              ) {
+                throw error;
+              }
+            }
           }),
         );
 

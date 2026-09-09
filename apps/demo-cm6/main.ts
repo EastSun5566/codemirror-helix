@@ -6,7 +6,7 @@ import { Picker } from "./components/picker";
 import { Debug } from "./components/debug";
 
 // @ts-ignore
-import fileNames from "folder:..?names";
+import fileNames from "folder:../..?names";
 import { SlTab } from "@shoelace-style/shoelace";
 
 const filePickerOptions = fileNames.map((value: string) => ({ value }));
@@ -135,11 +135,11 @@ const darkTheme =
     }),
     import("./shoelace").then(() => initShoelace()),
     // @ts-ignore
-    import("folder:.."),
+    import("folder:../.."),
   ]);
 
   if (import.meta.env.DEV) {
-    main("src/lib.ts").catch((error) => {
+    main("packages/codemirror-helix/src/lib.ts").catch((error) => {
       console.error(error);
     });
   } else {
@@ -458,7 +458,7 @@ function createPicker(view: EditorView | undefined, onSelect: (value: string) =>
 
 async function getFiles(): Promise<Record<string, string>> {
   // @ts-ignore
-  const mod = await import("folder:..");
+  const mod = await import("folder:../..");
   return mod.default;
 }
 

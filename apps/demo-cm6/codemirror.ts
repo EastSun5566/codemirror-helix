@@ -13,5 +13,5 @@ export {
   pathRegister,
   themeListener,
   changeTheme,
-} from "../src/lib";
-export { historyField, registersField } from "../src/state";
+} from "../../packages/codemirror-helix/src/lib";
+export { historyField, registersField } from "../../packages/codemirror-helix/src/state";

@@ -1,0 +1,20 @@
+:root {
+  color: #20242c;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  padding: 2rem;
+}
+
+main {
+  margin: 0 auto;
+  max-width: 60rem;
+}
+
+.CodeMirror {
+  border: 0.0625rem solid #cbd1dc;
+  font-size: 1rem;
+  height: 30rem;
+}

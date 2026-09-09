@@ -1,0 +1,62 @@
+{
+  "name": "codemirror-helix-cm5",
+  "version": "0.1.0-alpha.1",
+  "type": "module",
+  "license": "MPL-2.0",
+  "author": "Michael Wang",
+  "contributors": [
+    "Roberto Vidal"
+  ],
+  "description": "Helix bindings for CodeMirror 5",
+  "keywords": [
+    "code",
+    "editor",
+    "helix",
+    "codemirror",
+    "codemirror5"
+  ],
+  "scripts": {
+    "build": "rm -rf ./dist && tsc -p tsconfig.build.json && cp src/style.css dist/style.css",
+    "test": "npm run build && wdio run ./wdio.conf.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "PARITY.md",
+    "LICENSE"
+  ],
+  "types": "./dist/index.d.ts",
+  "main": "./dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./style.css": "./dist/style.css"
+  },
+  "sideEffects": [
+    "./dist/style.css",
+    "codemirror/addon/comment/comment.js"
+  ],
+  "dependencies": {
+    "codemirror-helix-core": "0.1.0-alpha.1"
+  },
+  "peerDependencies": {
+    "codemirror": ">=5.65.0 <6"
+  },
+  "devDependencies": {
+    "@types/codemirror": "^5.60.17",
+    "@wdio/cli": "^9.27.2",
+    "@wdio/local-runner": "^9.27.1",
+    "@wdio/mocha-framework": "^9.27.1",
+    "@wdio/spec-reporter": "^9.27.1",
+    "codemirror": "5.65.21",
+    "vite": "^7.3.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/EastSun5566/codemirror-helix.git",
+    "directory": "packages/codemirror-helix-cm5"
+  }
+}

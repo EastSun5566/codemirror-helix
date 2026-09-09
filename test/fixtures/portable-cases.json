@@ -1,0 +1,26 @@
+[
+  {
+    "name": "delete current character",
+    "initial": "abc",
+    "actions": [{ "key": "d" }],
+    "expected": "bc"
+  },
+  {
+    "name": "insert before current character",
+    "initial": "abc",
+    "actions": [{ "key": "i" }, { "insert": "X" }, { "key": "Escape" }],
+    "expected": "Xabc"
+  },
+  {
+    "name": "delete selected line",
+    "initial": "one\ntwo",
+    "actions": [{ "key": "x" }, { "key": "d" }],
+    "expected": "two"
+  },
+  {
+    "name": "change current character",
+    "initial": "abc",
+    "actions": [{ "key": "c" }, { "insert": "X" }, { "key": "Escape" }],
+    "expected": "Xbc"
+  }
+]

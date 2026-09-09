@@ -1,0 +1,67 @@
+.cm-helix {
+  --helix-panel-background: #1f2430;
+  --helix-panel-foreground: #f3f4f6;
+  --helix-panel-muted: #aeb6c4;
+  --helix-panel-accent: #9ece6a;
+}
+
+.cm-helix-panel {
+  align-items: center;
+  background: var(--helix-panel-background);
+  box-sizing: border-box;
+  color: var(--helix-panel-foreground);
+  display: flex;
+  font:
+    0.75rem/1.4 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    monospace;
+  gap: 0.75rem;
+  min-height: 1.75rem;
+  padding: 0.25rem 0.5rem;
+}
+
+.cm-helix-mode {
+  color: var(--helix-panel-accent);
+  font-weight: 700;
+  min-width: 4.5rem;
+}
+
+.cm-helix-message {
+  color: var(--helix-panel-muted);
+  flex: 1;
+}
+
+.cm-helix-prompt-host:empty {
+  display: none;
+}
+
+.cm-helix-prompt {
+  align-items: center;
+  display: flex;
+  gap: 0.375rem;
+}
+
+.cm-helix-prompt input {
+  background: transparent;
+  border: 0;
+  border-bottom: 0.0625rem solid var(--helix-panel-muted);
+  border-radius: 0;
+  color: inherit;
+  font: inherit;
+  min-width: 12rem;
+  outline: 0;
+  padding: 0.125rem 0.25rem;
+}
+
+.cm-helix-prompt input:focus-visible {
+  border-bottom-color: var(--helix-panel-accent);
+  box-shadow: 0 0.125rem 0 var(--helix-panel-accent);
+}
+
+.cm-helix[data-helix-mode="normal"] .CodeMirror-cursor,
+.cm-helix[data-helix-mode="select"] .CodeMirror-cursor {
+  border-left: 0;
+  width: 0.65em;
+}

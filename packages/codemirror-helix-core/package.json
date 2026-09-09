@@ -1,0 +1,40 @@
+{
+  "name": "codemirror-helix-core",
+  "version": "0.1.0-alpha.1",
+  "type": "module",
+  "license": "MPL-2.0",
+  "author": "Roberto Vidal",
+  "contributors": [
+    "Michael Wang"
+  ],
+  "description": "Editor-independent Helix keybinding engine shared by CodeMirror adapters",
+  "keywords": [
+    "editor",
+    "helix",
+    "keybindings"
+  ],
+  "scripts": {
+    "build": "rm -rf ./dist && tsc -p tsconfig.build.json",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "types": "./dist/index.d.ts",
+  "main": "./dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/EastSun5566/codemirror-helix.git",
+    "directory": "packages/codemirror-helix-core"
+  }
+}

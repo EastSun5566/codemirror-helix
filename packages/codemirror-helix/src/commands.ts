@@ -12,6 +12,7 @@ import { matchBrackets, syntaxTree } from "@codemirror/language";
 import type { SyntaxNode } from "@lezer/common";
 import { cursorLineStart, selectLineStart } from "@codemirror/commands";
 import { SearchQuery } from "@codemirror/search";
+import { nextGraphemeBreak, previousGraphemeBreak } from "codemirror-helix-core";
 
 type ViewLike = {
   state: EditorState;
@@ -1278,7 +1279,12 @@ export function nextClusterBreak(doc: Text, pos: number, forward: boolean) {
     return pos - 1;
   }
 
-  return findClusterBreak(line.text, pos - line.from, forward) + line.from;
+  const offset = pos - line.from;
+  return (
+    (forward
+      ? nextGraphemeBreak(line.text, offset)
+      : previousGraphemeBreak(line.text, offset)) + line.from
+  );
 }
 
 export function findEmptyLine(state: EditorState, startLine: number, forward: boolean) {

@@ -1,0 +1,128 @@
+import CodeMirror from "codemirror";
+import "codemirror/lib/codemirror.css";
+import "codemirror/mode/javascript/javascript.js";
+import "../src/style.css";
+import { helix, type HelixCm5Controller } from "../src/index";
+
+interface TestEditor {
+  editor: CodeMirror.Editor;
+  controller: HelixCm5Controller;
+  messages: string[];
+}
+
+const instances: TestEditor[] = [];
+let clipboard = "";
+Object.defineProperty(navigator, "clipboard", {
+  configurable: true,
+  value: {
+    readText: async () => clipboard,
+    writeText: async (value: string) => {
+      clipboard = value;
+    },
+  },
+});
+
+function create(value = "one two\nthree") {
+  const host = document.createElement("div");
+  document.querySelector("#editors")!.append(host);
+  const editor = CodeMirror(host, { value, lineNumbers: true, mode: "javascript" });
+  const messages: string[] = [];
+  const controller = helix(editor, {
+    onStatus(event) {
+      if (event.type !== "mode") {
+        messages.push(event.message);
+      }
+    },
+  });
+  instances.push({ editor, controller, messages });
+  editor.focus();
+  return instances.length - 1;
+}
+
+function key(index: number, value: string, modifiers: Partial<KeyboardEventInit> = {}) {
+  const { editor } = instances[index]!;
+  const input = editor.getInputField();
+  input.dispatchEvent(
+    new KeyboardEvent("keydown", {
+      key: value,
+      bubbles: true,
+      cancelable: true,
+      ...modifiers,
+    }),
+  );
+}
+
+Object.assign(window, {
+  cm5Test: {
+    reset() {
+      for (const { controller, editor } of instances.splice(0)) {
+        controller.destroy();
+        editor.getWrapperElement().parentElement?.remove();
+      }
+    },
+    create,
+    key,
+    value: (index: number) => instances[index]!.editor.getValue(),
+    mode: (index: number) => instances[index]!.controller.getMode(),
+    replace: (index: number, value: string) =>
+      instances[index]!.editor.replaceSelection(value),
+    snapshot: (index: number) => instances[index]!.controller.snapshot(),
+    setSelections(
+      index: number,
+      ranges: Array<{ anchor: number; head: number }>,
+      mainIndex = ranges.length - 1,
+    ) {
+      const editor = instances[index]!.editor;
+      editor.setSelections(
+        ranges.map((range) => ({
+          anchor: editor.posFromIndex(range.anchor),
+          head: editor.posFromIndex(range.head),
+        })),
+        mainIndex,
+      );
+    },
+    selections(index: number) {
+      const editor = instances[index]!.editor;
+      return editor.listSelections().map((range) => ({
+        anchor: editor.indexFromPos(range.anchor),
+        head: editor.indexFromPos(range.head),
+      }));
+    },
+    clipboard: () => clipboard,
+    setClipboard: (value: string) => {
+      clipboard = value;
+    },
+    submitPrompt(value: string) {
+      const input = document.querySelector<HTMLInputElement>(".cm-helix-prompt input");
+      if (!input) {
+        throw new Error("Prompt is not open");
+      }
+      input.value = value;
+      input.dispatchEvent(new InputEvent("input", { bubbles: true }));
+      input.form!.dispatchEvent(
+        new SubmitEvent("submit", { bubbles: true, cancelable: true }),
+      );
+    },
+    messages: (index: number) => [...instances[index]!.messages],
+    setWrapping(index: number, enabled: boolean) {
+      const editor = instances[index]!.editor;
+      editor.setSize(160, 100);
+      editor.setOption("lineWrapping", enabled);
+      editor.refresh();
+    },
+    theme: (index: number) => instances[index]!.editor.getOption("theme"),
+    changeTheme: (index: number, theme: string) =>
+      instances[index]!.controller.changeTheme(theme),
+    destroy: (index: number) => instances[index]!.controller.destroy(),
+    reenable(index: number) {
+      const instance = instances[index]!;
+      instance.controller = helix(instance.editor);
+    },
+    hasPanel: (index: number) =>
+      Boolean(
+        instances[index]!.editor.getWrapperElement().querySelector(".cm-helix-panel"),
+      ),
+    hasClass: (index: number) =>
+      instances[index]!.editor.getWrapperElement().classList.contains("cm-helix"),
+  },
+});
