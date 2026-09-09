@@ -1,0 +1,42 @@
+name: Publish CM5 packages
+
+on:
+  push:
+    tags:
+      - "cm5-v*"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          cache: npm
+      - name: Use an npm version that supports trusted publishing
+        run: npm install --global npm@11.5.1
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build:lib
+      - run: npm run test:core
+      - run: npm run test:cm5
+      - name: Validate synchronized versions and tag
+        run: node .github/scripts/check-release.mjs "${GITHUB_REF_NAME}"
+      - name: Confirm package names are not unexpectedly occupied
+        run: node .github/scripts/check-package-owners.mjs
+      - name: Publish core and CM5 adapter with provenance
+        run: |
+          if [[ "${GITHUB_REF_NAME}" == *-* ]]; then
+            DIST_TAG=alpha
+          else
+            DIST_TAG=latest
+          fi
+          npm publish -w codemirror-helix-core --access public --provenance --tag "$DIST_TAG"
+          npm publish -w codemirror-helix-cm5 --access public --provenance --tag "$DIST_TAG"
