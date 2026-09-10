@@ -38,5 +38,5 @@ jobs:
           else
             DIST_TAG=latest
           fi
-          npm publish -w codemirror-helix-core --access public --provenance --tag "$DIST_TAG"
-          npm publish -w codemirror-helix-cm5 --access public --provenance --tag "$DIST_TAG"
+          npm publish --workspace=codemirror-helix-core --access public --provenance --tag "$DIST_TAG"
+          npm publish --workspace=codemirror-helix-cm5 --access public --provenance --tag "$DIST_TAG"
