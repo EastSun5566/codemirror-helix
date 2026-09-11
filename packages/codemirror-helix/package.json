@@ -48,7 +48,7 @@
     "vite": "^7.3.2"
   },
   "dependencies": {
-    "codemirror-helix-core": "0.1.0-alpha.1"
+    "codemirror-helix-core": "0.1.0"
   },
   "peerDependencies": {
     "@codemirror/commands": "^6.0.0",

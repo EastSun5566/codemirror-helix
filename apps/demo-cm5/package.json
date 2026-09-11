@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "codemirror": "5.65.21",
-    "codemirror-helix-cm5": "0.1.0-alpha.1"
+    "codemirror-helix-cm5": "0.1.0"
   },
   "devDependencies": {
     "vite": "^7.3.2"
