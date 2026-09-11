@@ -24,6 +24,11 @@ npm test
 
 Run `npm run demo` for CM6 or `npm run demo:cm5` for CM5.
 
+## Acknowledgements
+
+The shared-core and CM5 adapter structure was inspired by
+[`codemirror-kakoune`](https://github.com/Yukaii/codemirror-kakoune) by Yukaii.
+
 ## License
 
 [MPL-2.0](./LICENSE). Contributions must follow the
