@@ -1,6 +1,6 @@
 {
   "name": "codemirror-helix-cm5",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "license": "MPL-2.0",
   "author": "Michael Wang",
@@ -40,7 +40,7 @@
     "codemirror/addon/comment/comment.js"
   ],
   "dependencies": {
-    "codemirror-helix-core": "0.1.0"
+    "codemirror-helix-core": "0.1.1"
   },
   "peerDependencies": {
     "codemirror": ">=5.65.0 <6"

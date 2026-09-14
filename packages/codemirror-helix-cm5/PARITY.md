@@ -1,18 +1,14 @@
 # CM5 parity
 
-The CM5 adapter uses the shared offset-based engine for portable motions, selections,
-edits, registers, search, history, scrolling, panels, and editor-local state.
+`codemirror-helix-cm5` treats Roberto Vidal's CM6 implementation in this repository
+as its compatibility contract, including behavior that differs from Helix itself.
 
-## Named expected gap
-
-CodeMirror 5 does not expose the Lezer tree used by CodeMirror 6. The following
-syntax-tree commands are intentionally unsupported in v0.1:
+CodeMirror 5 has no Lezer syntax tree, so these commands are unsupported:
 
 - `Alt-o`: select parent syntax node
 - `Alt-i`: shrink the syntax selection
 - `Alt-n`: select next syntax sibling
 - `Alt-p`: select previous syntax sibling
 
-These keys do not change the document or selection and report an informational status
-message. Bracket matching uses deterministic text scanning instead. Comment toggling
-loads CodeMirror 5's built-in comment addon.
+They do not change the document or selection and report an unsupported status. Bracket
+matching uses text scanning; comments use CodeMirror 5's comment addon.
