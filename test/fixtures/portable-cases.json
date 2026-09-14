@@ -22,5 +22,59 @@
     "initial": "abc",
     "actions": [{ "key": "c" }, { "insert": "X" }, { "key": "Escape" }],
     "expected": "Xbc"
+  },
+  {
+    "name": "select current CM6 word group",
+    "initial": "one two",
+    "actions": [{ "key": "w" }],
+    "expected": { "text": "one two", "selection": [0, 3] }
+  },
+  {
+    "name": "delete current CM6 word group",
+    "initial": "one two",
+    "actions": [{ "key": "w" }, { "key": "d" }],
+    "expected": " two"
+  },
+  {
+    "name": "word group after counted character motion",
+    "initial": "move to     test",
+    "actions": [{ "key": "5" }, { "key": "l" }, { "key": "w" }],
+    "expected": { "text": "move to     test", "selection": [5, 7] }
+  },
+  {
+    "name": "word end aliases next CM6 group",
+    "initial": "move to     test",
+    "actions": [{ "key": "5" }, { "key": "l" }, { "key": "e" }],
+    "expected": { "text": "move to     test", "selection": [5, 7] }
+  },
+  {
+    "name": "select next CM6 group across whitespace",
+    "initial": "one  two",
+    "actions": [{ "key": "w" }, { "key": "w" }],
+    "expected": { "text": "one  two", "selection": [3, 8] }
+  },
+  {
+    "name": "move through CM6 word and whitespace groups",
+    "initial": "one  two",
+    "actions": [{ "key": "w" }, { "key": "w" }, { "key": "w" }],
+    "expected": { "text": "one  two", "selection": [8, 8] }
+  },
+  {
+    "name": "extend selection by CM6 groups",
+    "initial": "one  two",
+    "actions": [{ "key": "v" }, { "key": "w" }, { "key": "w" }],
+    "expected": { "text": "one  two", "selection": [0, 8] }
+  },
+  {
+    "name": "move to previous CM6 word group",
+    "initial": "one two",
+    "actions": [{ "key": "g" }, { "key": "l" }, { "key": "b" }],
+    "expected": { "text": "one two", "selection": [7, 4] }
+  },
+  {
+    "name": "CM6 word count is ignored",
+    "initial": "one two three",
+    "actions": [{ "key": "2" }, { "key": "w" }],
+    "expected": { "text": "one two three", "selection": [0, 3] }
   }
 ]

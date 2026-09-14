@@ -112,7 +112,51 @@ export function wordEnd(text: string, offset: number): number {
   return position;
 }
 
-function characterKind(character: string): "word" | "space" | "punctuation" {
+export function groupForward(text: string, offset: number): number {
+  let position = clamp(offset, 0, text.length);
+  let kind = characterKind(text[position] ?? "");
+  while (position < text.length && characterKind(text[position] ?? "") === kind) {
+    position = nextGraphemeBreak(text, position);
+  }
+  if ((kind === "space" || kind === "linebreak") && position < text.length) {
+    kind = characterKind(text[position] ?? "");
+    while (position < text.length && characterKind(text[position] ?? "") === kind) {
+      position = nextGraphemeBreak(text, position);
+    }
+  }
+  return position;
+}
+
+export function groupBackward(text: string, offset: number): number {
+  let position = previousGraphemeBreak(text, offset);
+  let kind = characterKind(text[position] ?? "");
+  while (position > 0) {
+    const previous = previousGraphemeBreak(text, position);
+    if (characterKind(text[previous] ?? "") !== kind) {
+      break;
+    }
+    position = previous;
+  }
+  if ((kind === "space" || kind === "linebreak") && position > 0) {
+    position = previousGraphemeBreak(text, position);
+    kind = characterKind(text[position] ?? "");
+    while (position > 0) {
+      const previous = previousGraphemeBreak(text, position);
+      if (characterKind(text[previous] ?? "") !== kind) {
+        break;
+      }
+      position = previous;
+    }
+  }
+  return position;
+}
+
+function characterKind(
+  character: string,
+): "word" | "space" | "linebreak" | "punctuation" {
+  if (character === "\n" || character === "\r") {
+    return "linebreak";
+  }
   if (/\s/u.test(character)) {
     return "space";
   }

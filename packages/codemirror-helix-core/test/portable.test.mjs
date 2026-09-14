@@ -53,6 +53,7 @@ function createMemoryEditor(initial) {
       }));
     },
     value: () => document,
+    selections: () => selections,
   };
 }
 
@@ -67,6 +68,19 @@ for (const fixture of fixtures) {
         memory.insert(action.insert);
       }
     }
-    assert.equal(memory.value(), fixture.expected);
+    const expected =
+      typeof fixture.expected === "string"
+        ? { text: fixture.expected }
+        : fixture.expected;
+    assert.equal(memory.value(), expected.text);
+    if (expected.selection) {
+      const selections = Array.isArray(expected.selection[0])
+        ? expected.selection
+        : [expected.selection];
+      assert.deepEqual(
+        memory.selections(),
+        selections.map(([anchor, head]) => ({ anchor, head })),
+      );
+    }
   });
 }

@@ -53,13 +53,26 @@ test("moves by Unicode grapheme clusters", () => {
   assert.equal(memory.selections[0].head, nextGraphemeBreak("a👨‍👩‍👧‍👦b", 1));
 });
 
-test("counted motions and snapshots are editor independent", () => {
+test("group motions match Roberto's CM6 selection behavior", () => {
   const memory = memoryAdapter("one two three");
   const engine = createHelixEngine(memory.adapter);
   engine.handleKey("2");
   engine.handleKey("w");
-  assert.equal(memory.selections[0].head, 8);
+  assert.deepEqual(memory.selections, [{ anchor: 0, head: 3 }]);
   assert.equal(engine.snapshot().version, 1);
+});
+
+test("word deletion removes the CM6-selected group", () => {
+  const memory = memoryAdapter("move to     test");
+  memory.adapter.setSelections([{ anchor: 5, head: 5 }]);
+  const engine = createHelixEngine(memory.adapter);
+
+  engine.handleKey("w");
+  assert.deepEqual(memory.selections, [{ anchor: 5, head: 7 }]);
+  engine.handleKey("d");
+
+  assert.equal(memory.document, "move      test");
+  assert.deepEqual(engine.readRegister('"'), ["to"]);
 });
 
 test("yank and paste use editor-local registers", () => {

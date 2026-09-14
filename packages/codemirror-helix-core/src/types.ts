@@ -96,6 +96,14 @@ export interface HelixEditorAdapter {
   toggleComment(): boolean;
   scroll(command: HelixScrollCommand): boolean;
   changeTheme(theme: string): boolean;
+  /** Move from an offset to the next CodeMirror character-group boundary. */
+  moveByGroup?(offset: number, forward: boolean): number;
+  /** Move by visual lines while preserving the editor's native goal column. */
+  moveVertically?(
+    offset: number,
+    amount: number,
+    goalColumn?: number,
+  ): { offset: number; goalColumn: number };
   getHistory?(): unknown;
   setHistory?(history: unknown): void;
   syntax?: {

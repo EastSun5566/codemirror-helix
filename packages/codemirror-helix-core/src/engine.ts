@@ -1,13 +1,12 @@
 import {
+  groupBackward,
+  groupForward,
   lineBounds,
   nextGraphemeBreak,
   offsetAtLine,
   previousGraphemeBreak,
   rangeFrom,
   rangeTo,
-  wordBackward,
-  wordEnd,
-  wordForward,
 } from "./text.js";
 import type {
   HelixChange,
@@ -74,6 +73,19 @@ export function createHelixEngine(
     adapter.setHistory?.(state.history);
   }
   adapter.setMode(state.mode ?? "normal");
+  if (state.mode !== "insert") {
+    const text = adapter.getDocument();
+    adapter.setSelections(
+      adapter
+        .getSelections()
+        .map((selection) =>
+          rangeFrom(selection) === rangeTo(selection)
+            ? toEditorSelection(selection, text)
+            : selection,
+        ),
+      adapter.getMainSelectionIndex(),
+    );
+  }
   if (state.theme) {
     adapter.changeTheme(state.theme);
   }
@@ -126,36 +138,143 @@ export function createHelixEngine(
     let selections = currentSelections();
     for (let repetition = 0; repetition < count(); repetition += 1) {
       selections = selections.map((selection, index) => {
-        const head = target(text, selection.head, index);
-        return state.mode === "select"
-          ? { anchor: selection.anchor, head }
-          : { anchor: head, head };
+        const initial = toInternalSelection(selection, text);
+        const head = target(text, initial.head, index);
+        return toEditorSelection(
+          state.mode === "select"
+            ? { anchor: initial.anchor, head }
+            : { anchor: head, head },
+          text,
+        );
       });
     }
+    applySelections(selections, adapter.getMainSelectionIndex());
+  }
+
+  function selectionIsForward(selection: HelixSelection): boolean {
+    return selection.head > rangeFrom(selection);
+  }
+
+  function selectionIsAtomic(selection: HelixSelection, text: string): boolean {
+    const from = rangeFrom(selection);
+    const to = rangeTo(selection);
+    return to - from <= 1 || nextGraphemeBreak(text, from) === to;
+  }
+
+  function toInternalSelection(selection: HelixSelection, text: string): HelixSelection {
+    const from = rangeFrom(selection);
+    const to = rangeTo(selection);
+    if (from === to) {
+      return selection;
+    }
+    const end = previousGraphemeBreak(text, to);
+    return selectionIsForward(selection)
+      ? { anchor: from, head: end }
+      : { anchor: end, head: from };
+  }
+
+  function toEditorSelection(selection: HelixSelection, text: string): HelixSelection {
+    const from = rangeFrom(selection);
+    const to = rangeTo(selection);
+    const end = nextGraphemeBreak(text, to);
+    return selectionIsForward(selection)
+      ? { anchor: from, head: end }
+      : { anchor: end, head: from };
+  }
+
+  function groupBoundary(text: string, offset: number, forward: boolean): number {
+    return (
+      adapter.moveByGroup?.(offset, forward) ??
+      (forward ? groupForward(text, offset) : groupBackward(text, offset))
+    );
+  }
+
+  function moveByGroup(forward: boolean) {
+    const text = adapter.getDocument();
+    const selections = currentSelections().map((selection) => {
+      const rangeForward = selectionIsForward(selection);
+      const atomic = selectionIsAtomic(selection, text);
+      const headCursor = atomic
+        ? selection
+        : {
+            anchor: rangeForward
+              ? previousGraphemeBreak(text, selection.head)
+              : nextGraphemeBreak(text, selection.head),
+            head: selection.head,
+          };
+      const anchorCursor = atomic
+        ? selection
+        : {
+            anchor: selection.anchor,
+            head: rangeForward
+              ? nextGraphemeBreak(text, selection.anchor)
+              : previousGraphemeBreak(text, selection.anchor),
+          };
+
+      let nextAnchor = forward ? rangeFrom(headCursor) : rangeTo(headCursor);
+      let nextHead = groupBoundary(text, nextAnchor, forward);
+      const oldEnd = forward ? rangeTo(headCursor) : rangeFrom(headCursor);
+
+      if (nextHead === oldEnd) {
+        nextAnchor = nextHead;
+        nextHead = groupBoundary(text, nextAnchor, forward);
+      }
+
+      if (state.mode !== "select") {
+        return { anchor: nextAnchor, head: nextHead };
+      }
+
+      const nextRange = { anchor: nextAnchor, head: nextHead };
+      const nextHeadCursor = selectionIsAtomic(nextRange, text)
+        ? nextRange
+        : {
+            anchor: forward
+              ? previousGraphemeBreak(text, nextRange.head)
+              : nextGraphemeBreak(text, nextRange.head),
+            head: nextRange.head,
+          };
+
+      return rangeTo(nextHeadCursor) < rangeFrom(anchorCursor)
+        ? { anchor: rangeTo(anchorCursor), head: rangeFrom(nextHeadCursor) }
+        : { anchor: rangeFrom(anchorCursor), head: rangeTo(nextHeadCursor) };
+    });
+
     applySelections(selections, adapter.getMainSelectionIndex());
   }
 
   function moveVertical(direction: -1 | 1) {
     const text = adapter.getDocument();
     const selections = currentSelections();
-    if (preferredColumns.length !== selections.length) {
+    if (!adapter.moveVertically && preferredColumns.length !== selections.length) {
       preferredColumns = selections.map((selection) => {
-        const line = lineBounds(text, selection.head);
-        return selection.head - line.from;
+        const head = toInternalSelection(selection, text).head;
+        const line = lineBounds(text, head);
+        return head - line.from;
       });
     }
     const distance = count() * direction;
     applySelections(
       selections.map((selection, index) => {
-        const line = lineBounds(text, selection.head);
-        const head = offsetAtLine(
+        const initial = toInternalSelection(selection, text);
+        let head: number;
+        if (adapter.moveVertically) {
+          const moved = adapter.moveVertically(
+            initial.head,
+            distance,
+            preferredColumns[index],
+          );
+          head = moved.offset;
+          preferredColumns[index] = moved.goalColumn;
+        } else {
+          const line = lineBounds(text, initial.head);
+          head = offsetAtLine(text, line.number + distance, preferredColumns[index] ?? 0);
+        }
+        return toEditorSelection(
+          state.mode === "select"
+            ? { anchor: initial.anchor, head }
+            : { anchor: head, head },
           text,
-          line.number + distance,
-          preferredColumns[index] ?? 0,
         );
-        return state.mode === "select"
-          ? { anchor: selection.anchor, head }
-          : { anchor: head, head };
       }),
       adapter.getMainSelectionIndex(),
     );
@@ -191,7 +310,6 @@ export function createHelixEngine(
   function writeRegister(values: string[]) {
     const name = registerName();
     state.registers[name] = [...values];
-    state.registers[DEFAULT_REGISTER] = [...values];
     if (name === "+" || name === "*") {
       void adapter.writeClipboard(values.join("\n")).catch(() => {
         status("Unable to write to the clipboard", "error");
@@ -202,7 +320,6 @@ export function createHelixEngine(
   function yank() {
     writeRegister(selectedTexts());
     setMode("normal");
-    collapseSelections();
   }
 
   function remove(enterInsert: boolean, shouldYank = true) {
@@ -210,9 +327,16 @@ export function createHelixEngine(
       writeRegister(selectedTexts());
     }
     const changes = selectionChanges("");
-    const cursors = changes.map(({ from }) => ({ anchor: from, head: from }));
     adapter.operation(() => {
       adapter.applyChanges(changes);
+      const nextText = adapter.getDocument();
+      let offset = 0;
+      const cursors = changes.map(({ from, to, insert }) => {
+        const head = from + offset;
+        offset += insert.length - (to - from);
+        const cursor = { anchor: head, head };
+        return enterInsert ? cursor : toEditorSelection(cursor, nextText);
+      });
       applySelections(cursors, adapter.getMainSelectionIndex());
     });
     setMode(enterInsert ? "insert" : "normal");
@@ -224,26 +348,32 @@ export function createHelixEngine(
       if (values.length === 0) {
         return;
       }
-      const text = adapter.getDocument();
       const selections = currentSelections();
       const changes = selections.map((selection, index): HelixChange => {
-        const from = rangeFrom(selection);
-        const to = rangeTo(selection);
-        const at = before ? from : from === to ? nextGraphemeBreak(text, to) : to;
-        return { from: at, to: at, insert: values[index % values.length] ?? "" };
+        const at = before ? rangeFrom(selection) : rangeTo(selection);
+        return {
+          from: at,
+          to: at,
+          insert: (values[index % values.length] ?? "").repeat(count()),
+        };
       });
-      const cursors = changes.map(({ from, insert }) => ({
-        anchor: from,
-        head: Math.max(from, from + insert.length - 1),
-      }));
+      let offset = 0;
+      const ranges = changes.map(({ from, insert }) => {
+        const anchor = from + offset;
+        offset += insert.length;
+        return { anchor, head: anchor + insert.length };
+      });
       adapter.operation(() => {
         adapter.applyChanges(changes);
-        applySelections(cursors, adapter.getMainSelectionIndex());
+        applySelections(ranges, adapter.getMainSelectionIndex());
       });
     };
     if (name === "+" || name === "*") {
       void adapter.readClipboard().then(
-        (value) => finish([value]),
+        (value) => {
+          const registered = state.registers[name];
+          finish(registered?.join("\n") === value ? registered : [value]);
+        },
         () => {
           status("Unable to read from the clipboard", "error");
         },
@@ -254,11 +384,12 @@ export function createHelixEngine(
   }
 
   function collapseSelections() {
+    const text = adapter.getDocument();
     applySelections(
-      currentSelections().map((selection) => ({
-        anchor: rangeFrom(selection),
-        head: rangeFrom(selection),
-      })),
+      currentSelections().map((selection) => {
+        const head = toInternalSelection(selection, text).head;
+        return toEditorSelection({ anchor: head, head }, text);
+      }),
       adapter.getMainSelectionIndex(),
     );
   }
@@ -267,10 +398,10 @@ export function createHelixEngine(
     const text = adapter.getDocument();
     applySelections(
       currentSelections().map((selection) => {
-        const line = lineBounds(text, selection.head);
+        const line = lineBounds(text, rangeFrom(selection));
         let head = rangeFrom(selection);
         if (at === "after") {
-          head = nextGraphemeBreak(text, rangeTo(selection));
+          head = rangeTo(selection);
         }
         if (at === "line-start") {
           const match = /\S/u.exec(text.slice(line.from, line.to));
@@ -291,8 +422,29 @@ export function createHelixEngine(
     applySelections(
       currentSelections().map((selection) => {
         const first = lineBounds(text, rangeFrom(selection));
-        const last = lineBounds(text, rangeTo(selection));
-        return { anchor: first.from, head: Math.min(text.length, last.to + 1) };
+        let last = lineBounds(text, rangeTo(selection));
+        if (
+          rangeFrom(selection) !== rangeTo(selection) &&
+          rangeTo(selection) === last.from
+        ) {
+          last = lineBounds(text, rangeTo(selection) - 1);
+        }
+        const ideal = {
+          anchor: first.from,
+          head: Math.min(text.length, last.to + 1),
+        };
+        const perfect =
+          rangeFrom(ideal) === rangeFrom(selection) &&
+          rangeTo(ideal) === rangeTo(selection);
+        if (!perfect && countBuffer === "") {
+          return ideal;
+        }
+        const next = offsetAtLine(text, last.number + count(), Number.MAX_SAFE_INTEGER);
+        const nextLine = lineBounds(text, next);
+        return {
+          anchor: first.from,
+          head: Math.min(text.length, nextLine.to + 1),
+        };
       }),
       adapter.getMainSelectionIndex(),
     );
@@ -302,7 +454,8 @@ export function createHelixEngine(
     const text = adapter.getDocument();
     const selections = currentSelections();
     const changes = selections.map((selection): HelixChange => {
-      const line = lineBounds(text, selection.head);
+      const internal = toInternalSelection(selection, text);
+      const line = lineBounds(text, above ? rangeFrom(internal) : rangeTo(internal));
       return above
         ? { from: line.from, to: line.from, insert: "\n" }
         : { from: line.to, to: line.to, insert: "\n" };
@@ -356,21 +509,36 @@ export function createHelixEngine(
 
   function findCharacter(character: string, backwards: boolean, till: boolean) {
     const text = adapter.getDocument();
-    move((_, head) => {
-      const line = lineBounds(text, head);
-      const match = backwards
-        ? text.lastIndexOf(character, Math.max(line.from, head - 1))
-        : text.indexOf(character, Math.min(line.to, head + 1));
-      if (match < line.from || match > line.to) {
-        return head;
-      }
-      if (!till) {
-        return match;
-      }
-      return backwards
-        ? nextGraphemeBreak(text, match)
-        : previousGraphemeBreak(text, match);
-    });
+    applySelections(
+      currentSelections().map((selection) => {
+        const initial = toInternalSelection(selection, text);
+        const line = lineBounds(text, initial.head);
+        let match = initial.head;
+
+        for (let repetition = 0; repetition < count(); repetition += 1) {
+          const next = backwards
+            ? text.lastIndexOf(character, Math.max(line.from, match - 1))
+            : text.indexOf(character, Math.min(line.to, match + 1));
+          if (next < line.from || next > line.to) {
+            return selection;
+          }
+          match = next;
+        }
+
+        const head = till
+          ? backwards
+            ? nextGraphemeBreak(text, match)
+            : previousGraphemeBreak(text, match)
+          : match;
+        return toEditorSelection(
+          state.mode === "select"
+            ? { anchor: initial.anchor, head }
+            : { anchor: initial.head, head },
+          text,
+        );
+      }),
+      adapter.getMainSelectionIndex(),
+    );
   }
 
   function matchBracket() {
@@ -455,29 +623,30 @@ export function createHelixEngine(
 
   function duplicateSelectionsOnNextLines() {
     const text = adapter.getDocument();
-    const original = currentSelections();
-    const duplicated = [...original];
-    for (let repetition = 0; repetition < count(); repetition += 1) {
-      const source = duplicated.slice(-original.length);
-      for (const selection of source) {
-        const anchorLine = lineBounds(text, selection.anchor);
-        const headLine = lineBounds(text, selection.head);
-        const anchor = offsetAtLine(
-          text,
-          anchorLine.number + 1,
-          selection.anchor - anchorLine.from,
-        );
-        const head = offsetAtLine(
-          text,
-          headLine.number + 1,
-          selection.head - headLine.from,
-        );
-        if (anchor !== selection.anchor || head !== selection.head) {
-          duplicated.push({ anchor, head });
-        }
+    const selections = currentSelections();
+    const main = selections[adapter.getMainSelectionIndex()] ?? selections[0];
+    if (!main) {
+      return;
+    }
+    const headLine = lineBounds(text, main.head);
+    const anchorLine = lineBounds(text, main.anchor);
+    for (let lineNumber = headLine.number + 1; ; lineNumber += 1) {
+      const lineStart = offsetAtLine(text, lineNumber, 0);
+      const line = lineBounds(text, lineStart);
+      if (line.number !== lineNumber) {
+        return;
+      }
+      const headColumn = main.head - headLine.from;
+      const anchorColumn = main.anchor - anchorLine.from;
+      if (headColumn <= line.to - line.from && anchorColumn <= line.to - line.from) {
+        const head = line.from + headColumn;
+        const anchor = line.from + anchorColumn;
+        const range =
+          main.head < main.anchor ? { anchor: head, head: anchor } : { anchor, head };
+        applySelections([...selections, range], selections.length);
+        return;
       }
     }
-    applySelections(duplicated, duplicated.length - 1);
   }
 
   function trimSelections() {
@@ -550,26 +719,52 @@ export function createHelixEngine(
 
   function joinSelectedLines() {
     const text = adapter.getDocument();
-    const changes: HelixChange[] = [];
-    for (const selection of currentSelections()) {
-      const first = lineBounds(text, rangeFrom(selection));
-      let last = lineBounds(text, rangeTo(selection));
-      if (last.number === first.number && last.to < text.length) {
-        last = lineBounds(text, last.to + 1);
-      }
-      if (last.number === first.number) {
-        continue;
-      }
-      const value = text
-        .slice(first.from, last.to)
-        .split("\n")
-        .map((line, index) => (index === 0 ? line : line.trimStart()))
-        .join(" ");
-      changes.push({ from: first.from, to: last.to, insert: value });
+    const selection = currentSelections()[adapter.getMainSelectionIndex()];
+    if (!selection) {
+      return;
     }
-    if (changes.length > 0) {
-      adapter.applyChanges(changes);
+    const first = lineBounds(text, rangeFrom(selection));
+    let last = lineBounds(text, rangeTo(selection));
+    const sameLine = last.number === first.number;
+    if (sameLine) {
+      const next = offsetAtLine(text, first.number + 1, 0);
+      last = lineBounds(text, next);
     }
+    if (last.number === first.number) {
+      return;
+    }
+    let content = "";
+    let removed = 0;
+    for (let lineNumber = first.number; lineNumber <= last.number; lineNumber += 1) {
+      const line = lineBounds(text, offsetAtLine(text, lineNumber, 0));
+      let lineContent = text.slice(line.from, line.to);
+      if (lineNumber > first.number) {
+        const trimmed = lineContent.length - lineContent.trimStart().length;
+        let removedHere = trimmed;
+        if (
+          !sameLine &&
+          lineNumber === last.number &&
+          rangeTo(selection) - last.from < trimmed
+        ) {
+          removedHere = rangeTo(selection) - last.from;
+        }
+        removed += removedHere;
+        lineContent = lineContent.slice(trimmed);
+      }
+      content += lineContent;
+      if (lineNumber !== last.number) {
+        content += " ";
+      }
+    }
+    const newTo = sameLine ? rangeTo(selection) : rangeTo(selection) - removed;
+    const nextSelection =
+      selection.anchor > selection.head
+        ? { anchor: newTo, head: rangeFrom(selection) }
+        : { anchor: rangeFrom(selection), head: newTo };
+    adapter.operation(() => {
+      adapter.applyChanges([{ from: first.from, to: last.to, insert: content }]);
+      applySelections([nextSelection], 0);
+    });
   }
 
   const delimiterPairs: Record<string, [string, string]> = {
@@ -629,6 +824,9 @@ export function createHelixEngine(
         if (best?.[0] === from) {
           break;
         }
+        if (from === 0) {
+          break;
+        }
       }
     }
     return best;
@@ -639,13 +837,28 @@ export function createHelixEngine(
     applySelections(
       currentSelections().map((selection) => {
         if (requested === "p") {
-          const before = text.lastIndexOf("\n\n", Math.max(0, selection.head - 1));
-          const after = text.indexOf("\n\n", selection.head);
-          const from = before < 0 ? 0 : before + 2;
-          const to = after < 0 ? text.length : after;
-          return selection.anchor <= selection.head
-            ? { anchor: from, head: to }
-            : { anchor: to, head: from };
+          const currentLine = lineBounds(text, rangeFrom(selection)).number;
+          let before: ReturnType<typeof lineBounds> | undefined;
+          let after: ReturnType<typeof lineBounds> | undefined;
+          for (let lineNumber = currentLine; lineNumber >= 1; lineNumber -= 1) {
+            const line = lineBounds(text, offsetAtLine(text, lineNumber, 0));
+            if (line.from === line.to) {
+              before = line;
+              break;
+            }
+          }
+          const totalLines = lineBounds(text, text.length).number;
+          for (let lineNumber = currentLine; lineNumber <= totalLines; lineNumber += 1) {
+            const line = lineBounds(text, offsetAtLine(text, lineNumber, 0));
+            if (line.from === line.to) {
+              after = line;
+              break;
+            }
+          }
+          return {
+            anchor: before ? before.to + 1 : 0,
+            head: after ? after.to : text.length,
+          };
         }
         const match = enclosingDelimiter(text, selection.head, requested);
         if (!match) {
@@ -654,7 +867,7 @@ export function createHelixEngine(
         const [open, close] = match;
         const from = around ? open : open + 1;
         const to = around ? close + 1 : close;
-        return selection.anchor <= selection.head
+        return selectionIsAtomic(selection, text) || selection.anchor <= selection.head
           ? { anchor: from, head: to }
           : { anchor: to, head: from };
       }),
@@ -686,7 +899,7 @@ export function createHelixEngine(
           .reduce((total) => total + open.length + close.length, 0);
         const start = from + shift;
         const end = to + shift + open.length + close.length;
-        return selection.anchor <= selection.head
+        return selectionIsAtomic(selection, text) || selection.anchor <= selection.head
           ? { anchor: start, head: end }
           : { anchor: end, head: start };
       }),
@@ -694,7 +907,11 @@ export function createHelixEngine(
     );
   }
 
-  function searchMatches(value: string): HelixSelection[] | undefined {
+  function searchMatches(
+    value: string,
+    from = 0,
+    to = adapter.getDocument().length,
+  ): HelixSelection[] | undefined {
     let expression: RegExp;
     try {
       expression = new RegExp(value, /[A-Z]/u.test(value) ? "gu" : "giu");
@@ -702,14 +919,76 @@ export function createHelixEngine(
       status(error instanceof Error ? error.message : String(error), "error");
       return undefined;
     }
-    const text = adapter.getDocument();
+    const text = adapter.getDocument().slice(from, to);
     const matches: HelixSelection[] = [];
     for (const match of text.matchAll(expression)) {
-      const at = match.index;
+      const at = from + match.index;
       const matched = match[0];
       matches.push({ anchor: at, head: at + matched.length });
     }
     return matches;
+  }
+
+  function normalizedSelections(
+    selections: readonly HelixSelection[],
+    main: HelixSelection,
+  ): { selections: HelixSelection[]; mainIndex: number } {
+    const sorted = [...selections].sort(
+      (left, right) =>
+        rangeFrom(left) - rangeFrom(right) || rangeTo(left) - rangeTo(right),
+    );
+    const unique: HelixSelection[] = [];
+    let mainRange = main;
+    for (const selection of sorted) {
+      const previous = unique.at(-1);
+      if (
+        previous &&
+        rangeFrom(previous) === rangeFrom(selection) &&
+        rangeTo(previous) === rangeTo(selection)
+      ) {
+        if (selection === main) {
+          mainRange = previous;
+        }
+        continue;
+      }
+      unique.push(selection);
+    }
+    return {
+      selections: unique,
+      mainIndex: Math.max(0, unique.indexOf(mainRange)),
+    };
+  }
+
+  function addOrReplaceMatches(matches: readonly HelixSelection[], select: boolean) {
+    if (matches.length === 0) {
+      return;
+    }
+    let selections = currentSelections();
+    let mainIndex = adapter.getMainSelectionIndex();
+    let main = selections[mainIndex] ?? selections[0];
+    for (const match of matches) {
+      if (select) {
+        selections = [...selections, match];
+      } else if (main) {
+        selections = selections.map((selection, index) =>
+          index === mainIndex ? match : selection,
+        );
+      } else {
+        selections = [match];
+      }
+      main = match;
+      const normalized = normalizedSelections(selections, match);
+      selections = normalized.selections;
+      mainIndex = normalized.mainIndex;
+    }
+    applySelections(selections, mainIndex);
+  }
+
+  function activeSearch(): string {
+    if (selectedRegister) {
+      return state.registers[selectedRegister]?.toString() ?? "";
+    }
+    return state.search;
   }
 
   function search(value: string, backwards = false) {
@@ -722,27 +1001,40 @@ export function createHelixEngine(
       status("No matches", "error");
       return;
     }
-    const selections = currentSelections();
-    applySelections(
-      selections.map((selection) => {
-        const ordered = backwards ? [...matches].reverse() : matches;
-        const boundary = backwards ? rangeFrom(selection) : rangeTo(selection);
-        const candidates = ordered.filter((match) =>
-          backwards ? rangeTo(match) <= boundary : rangeFrom(match) >= boundary,
-        );
-        const pool = candidates.length > 0 ? candidates : ordered;
-        return pool[(count() - 1) % pool.length] ?? selection;
-      }),
-      adapter.getMainSelectionIndex(),
-    );
+    const main =
+      currentSelections()[adapter.getMainSelectionIndex()] ?? currentSelections()[0];
+    if (!main) {
+      return;
+    }
+    const found: HelixSelection[] = [];
+    let boundary = backwards ? rangeFrom(main) : rangeTo(main);
+    for (let repetition = 0; repetition < count(); repetition += 1) {
+      const candidates = backwards
+        ? matches.filter((match) => rangeTo(match) < boundary)
+        : matches.filter((match) => rangeFrom(match) >= boundary);
+      const match = backwards
+        ? (candidates.at(-1) ?? matches.at(-1))
+        : (candidates[0] ?? matches[0]);
+      if (!match) {
+        break;
+      }
+      found.push(match);
+      boundary = backwards ? rangeFrom(match) : rangeTo(match);
+    }
+    addOrReplaceMatches(found, state.mode === "select");
   }
 
-  function selectMatches(value: string) {
+  function selectMatches(
+    value: string,
+    within: readonly HelixSelection[] = currentSelections(),
+  ) {
     if (!value) {
       return;
     }
     state.search = value;
-    const matches = searchMatches(value);
+    const matches = within.flatMap(
+      (selection) => searchMatches(value, rangeFrom(selection), rangeTo(selection)) ?? [],
+    );
     if (matches && matches.length > 0) {
       applySelections(matches, 0);
     }
@@ -750,6 +1042,10 @@ export function createHelixEngine(
 
   function prompt(kind: "command" | "search" | "selection-search" | "global-search") {
     const isCommand = kind === "command";
+    const initialSelections = currentSelections();
+    const initialMainIndex = adapter.getMainSelectionIndex();
+    const initialMode = state.mode;
+    let input = "";
     options.onPrompt?.({
       kind,
       label: isCommand
@@ -761,22 +1057,55 @@ export function createHelixEngine(
             : "/",
       initialValue: isCommand ? "" : state.search,
       onInput(value) {
+        if (value === input) {
+          return;
+        }
+        input = value;
         if (kind === "selection-search") {
-          selectMatches(value);
+          if (!value) {
+            applySelections(initialSelections, initialMainIndex);
+          } else {
+            selectMatches(value, initialSelections);
+          }
+        } else if (kind === "search" && value) {
+          const matches = searchMatches(value);
+          if (!matches || matches.length === 0) {
+            applySelections(initialSelections, initialMainIndex);
+            return;
+          }
+          const main = initialSelections[initialMainIndex] ?? initialSelections[0];
+          if (!main) {
+            return;
+          }
+          const matched =
+            matches.find((match) => rangeFrom(match) >= rangeTo(main)) ?? matches[0];
+          if (!matched) {
+            return;
+          }
+          if (initialMode === "select") {
+            const normalized = normalizedSelections(
+              [...initialSelections, matched],
+              matched,
+            );
+            applySelections(normalized.selections, normalized.mainIndex);
+          } else {
+            applySelections([matched], 0);
+          }
         }
       },
       onSubmit(value) {
         if (isCommand) {
           runCommandLine(value);
         } else if (kind === "search") {
-          search(value);
+          state.search = value;
         } else if (kind === "global-search") {
           runCommandLine(`global_search ${value}`);
         } else {
-          selectMatches(value);
+          state.search = value;
         }
       },
       onCancel() {
+        applySelections(initialSelections, initialMainIndex);
         status("Cancelled");
       },
     });
@@ -841,11 +1170,19 @@ export function createHelixEngine(
       if (key === "g") {
         move(() => 0);
       } else if (key === "e") {
-        move((text) => lineBounds(text, text.trimEnd().length).from);
+        move((text) => {
+          const last = lineBounds(text, text.length);
+          return last.from === last.to && last.number > 1
+            ? lineBounds(text, last.from - 1).from
+            : last.from;
+        });
       } else if (key === "h") {
         move((text, head) => lineBounds(text, head).from);
       } else if (key === "l") {
-        move((text, head) => lineBounds(text, head).to);
+        move((text, head) => {
+          const line = lineBounds(text, head);
+          return line.from === line.to ? line.to : previousGraphemeBreak(text, line.to);
+        });
       } else if (key === "s") {
         move((text, head) => {
           const line = lineBounds(text, head);
@@ -957,8 +1294,18 @@ export function createHelixEngine(
       return false;
     }
     if (key === "Escape" || key === "Esc") {
+      if (state.mode === "insert") {
+        const text = adapter.getDocument();
+        applySelections(
+          currentSelections().map((selection) =>
+            rangeFrom(selection) === rangeTo(selection)
+              ? toEditorSelection(selection, text)
+              : selection,
+          ),
+          adapter.getMainSelectionIndex(),
+        );
+      }
       setMode("normal");
-      collapseSelections();
       resetTransient();
       return true;
     }
@@ -979,7 +1326,9 @@ export function createHelixEngine(
       countBuffer += key;
       return true;
     }
-    preferredColumns = [];
+    if (!["j", "k", "ArrowDown", "ArrowUp"].includes(key)) {
+      preferredColumns = [];
+    }
     let handled = true;
     switch (key) {
       case '"':
@@ -1036,19 +1385,22 @@ export function createHelixEngine(
         moveVertical(-1);
         break;
       case "w":
-        move((text, head) => wordForward(text, head));
+        moveByGroup(true);
         break;
       case "b":
-        move((text, head) => wordBackward(text, head));
+        moveByGroup(false);
         break;
       case "e":
-        move((text, head) => wordEnd(text, head));
+        moveByGroup(true);
         break;
       case "0":
         move((text, head) => lineBounds(text, head).from);
         break;
       case "$":
-        move((text, head) => lineBounds(text, head).to);
+        move((text, head) => {
+          const line = lineBounds(text, head);
+          return line.from === line.to ? line.to : previousGraphemeBreak(text, line.to);
+        });
         break;
       case "v":
         setMode(state.mode === "select" ? "normal" : "select");
@@ -1133,9 +1485,10 @@ export function createHelixEngine(
         trimSelections();
         break;
       case "*": {
-        const selected = selectedTexts()[0];
+        const selected = [...new Set(selectedTexts())].join("|");
         if (selected) {
           state.search = selected;
+          state.registers["/"] = [selected];
         }
         break;
       }
@@ -1186,10 +1539,10 @@ export function createHelixEngine(
         prompt("command");
         break;
       case "n":
-        search(state.search);
+        search(activeSearch());
         break;
       case "N":
-        search(state.search, true);
+        search(activeSearch(), true);
         break;
       case "Alt-o":
         if (!adapter.syntax?.selectParent?.()) {
@@ -1232,7 +1585,6 @@ export function createHelixEngine(
     setMode,
     resetMode() {
       setMode("normal");
-      collapseSelections();
       resetTransient();
     },
     handleKey,
