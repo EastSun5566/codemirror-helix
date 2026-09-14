@@ -12,6 +12,7 @@ import {
   type HelixSelection,
   type HelixSnapshot,
   type HelixStatusEvent,
+  previousGraphemeBreak,
 } from "codemirror-helix-core";
 
 export type {
@@ -152,12 +153,15 @@ export function helix(
 ): HelixCm5Controller {
   const wrapper = editor.getWrapperElement();
   const originalTheme = editor.getOption("theme");
+  const originalSelectionsMayTouch = editor.getOption("selectionsMayTouch");
   const originalModeAttribute = wrapper.getAttribute("data-helix-mode");
   const hadRootClass = wrapper.classList.contains("cm-helix");
   const hadFatCursorClass = wrapper.classList.contains("cm-fat-cursor");
   const panel = createPanel(editor);
   let mutationDepth = 0;
   let destroyed = false;
+
+  editor.setOption("selectionsMayTouch", true);
 
   function mutate<T>(callback: () => T): T {
     mutationDepth += 1;
@@ -274,6 +278,34 @@ export function helix(
       editor.setOption("theme", options.themes?.[theme] ?? theme);
       return true;
     },
+    moveByGroup(offset, forward) {
+      const text = editor.getValue();
+      const traversedOffset = forward ? offset : previousGraphemeBreak(text, offset);
+      const startsWithWhitespace = /\s/u.test(text[traversedOffset] ?? "");
+      let position = editor.findPosH(
+        editor.posFromIndex(offset),
+        forward ? 1 : -1,
+        "group",
+        false,
+      );
+      if (startsWithWhitespace) {
+        position = editor.findPosH(position, forward ? 1 : -1, "group", false);
+      }
+      return editor.indexFromPos(position);
+    },
+    moveVertically(offset, amount, goalColumn) {
+      const start = editor.posFromIndex(offset);
+      const goal = goalColumn ?? editor.cursorCoords(start, "div").left;
+      const position = (
+        editor.findPosV as unknown as (
+          start: CodeMirror.Position,
+          amount: number,
+          unit: string,
+          goalColumn: number,
+        ) => CodeMirror.Position
+      )(start, amount, "line", goal);
+      return { offset: editor.indexFromPos(position), goalColumn: goal };
+    },
     getHistory: () => editor.getHistory(),
     setHistory: (history) => editor.setHistory(history),
   };
@@ -365,6 +397,7 @@ export function helix(
         wrapper.setAttribute("data-helix-mode", originalModeAttribute);
       }
       editor.setOption("theme", originalTheme);
+      editor.setOption("selectionsMayTouch", originalSelectionsMayTouch);
       engine.destroy();
       editor.refresh();
     },

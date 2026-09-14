@@ -41,15 +41,46 @@ function create(value = "one two\nthree") {
 
 function key(index: number, value: string, modifiers: Partial<KeyboardEventInit> = {}) {
   const { editor } = instances[index]!;
+  const prompt = document.querySelector<HTMLInputElement>(".cm-helix-prompt input");
+  if (prompt) {
+    if (value === "Enter") {
+      prompt.form!.dispatchEvent(
+        new SubmitEvent("submit", { bubbles: true, cancelable: true }),
+      );
+    } else if (value === "Escape") {
+      prompt.dispatchEvent(
+        new KeyboardEvent("keydown", { key: value, bubbles: true, cancelable: true }),
+      );
+    } else {
+      const start = prompt.selectionStart ?? prompt.value.length;
+      const end = prompt.selectionEnd ?? start;
+      if (value === "Backspace") {
+        const from = start === end ? Math.max(0, start - 1) : start;
+        prompt.setRangeText("", from, end, "end");
+      } else {
+        prompt.setRangeText(value, start, end, "end");
+      }
+      prompt.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    }
+    return;
+  }
   const input = editor.getInputField();
-  input.dispatchEvent(
-    new KeyboardEvent("keydown", {
-      key: value,
-      bubbles: true,
-      cancelable: true,
-      ...modifiers,
-    }),
-  );
+  const event = new KeyboardEvent("keydown", {
+    key: value,
+    bubbles: true,
+    cancelable: true,
+    ...modifiers,
+  });
+  input.dispatchEvent(event);
+  if (
+    !event.defaultPrevented &&
+    value.length === 1 &&
+    !modifiers.altKey &&
+    !modifiers.ctrlKey &&
+    !modifiers.metaKey
+  ) {
+    editor.replaceSelection(value, "end", "+input");
+  }
 }
 
 Object.assign(window, {
@@ -87,6 +118,19 @@ Object.assign(window, {
         anchor: editor.indexFromPos(range.anchor),
         head: editor.indexFromPos(range.head),
       }));
+    },
+    mainIndex: (index: number) => {
+      const editor = instances[index]!.editor;
+      const primary = editor
+        .listSelections()
+        .findIndex(
+          (selection) =>
+            selection.anchor.line === editor.getCursor("anchor").line &&
+            selection.anchor.ch === editor.getCursor("anchor").ch &&
+            selection.head.line === editor.getCursor("head").line &&
+            selection.head.ch === editor.getCursor("head").ch,
+        );
+      return primary < 0 ? editor.listSelections().length - 1 : primary;
     },
     clipboard: () => clipboard,
     setClipboard: (value: string) => {

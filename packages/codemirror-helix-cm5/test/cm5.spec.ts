@@ -16,6 +16,7 @@ declare global {
         mainIndex?: number,
       ): void;
       selections(index: number): Array<{ anchor: number; head: number }>;
+      mainIndex(index: number): number;
       clipboard(): string;
       setClipboard(value: string): void;
       submitPrompt(value: string): void;
@@ -74,11 +75,27 @@ describe("codemirror-helix-cm5", () => {
       api.key(0, "w");
       api.key(0, "d");
     });
-    expect(await call((api) => api.value(0))).toBe("one wo");
+    expect(await call((api) => api.value(0))).toBe(" two");
     const snapshot = (await call((api) => api.snapshot(0))) as {
       registers: Record<string, string[]>;
     };
-    expect(snapshot.registers['"']).toEqual(["t"]);
+    expect(snapshot.registers['"']).toEqual(["one"]);
+  });
+
+  it("matches CM6 word-group selections", async () => {
+    await call((api) => {
+      api.create("move to     test");
+      api.setSelections(0, [{ anchor: 5, head: 5 }]);
+      api.key(0, "w");
+    });
+    expect(await call((api) => api.selections(0))).toEqual([{ anchor: 5, head: 7 }]);
+
+    await call((api) => api.key(0, "d"));
+    expect(await call((api) => api.value(0))).toBe("move      test");
+    const snapshot = (await call((api) => api.snapshot(0))) as {
+      registers: Record<string, string[]>;
+    };
+    expect(snapshot.registers['"']).toEqual(["to"]);
   });
 
   it("preserves multiple selections, main index, and reverse direction", async () => {
@@ -147,15 +164,20 @@ describe("codemirror-helix-cm5", () => {
     await call((api) => {
       api.create("a very long wrapped line that should span several visual rows");
       api.setWrapping(0, true);
-      api.key(0, "o", { altKey: true });
+      for (const key of ["o", "i", "n", "p"]) {
+        api.key(0, key, { altKey: true });
+      }
       api.key(0, "d", { ctrlKey: true });
     });
     expect(await call((api) => api.value(0))).toBe(
       "a very long wrapped line that should span several visual rows",
     );
-    expect(await call((api) => api.messages(0))).toContain(
+    expect(await call((api) => api.messages(0))).toEqual([
       "Syntax parent selection is unsupported by this adapter",
-    );
+      "Syntax selection shrinking is unsupported by this adapter",
+      "Syntax sibling selection is unsupported by this adapter",
+      "Syntax sibling selection is unsupported by this adapter",
+    ]);
   });
 
   it("changes themes and fully tears down adapter UI", async () => {
@@ -185,7 +207,19 @@ describe("codemirror-helix-cm5", () => {
           }
         }, action);
       }
-      expect(await call((api) => api.value(0))).toBe(fixture.expected);
+      const expected =
+        typeof fixture.expected === "string"
+          ? { text: fixture.expected }
+          : fixture.expected;
+      expect(await call((api) => api.value(0))).toBe(expected.text);
+      if (expected.selection) {
+        const selections = Array.isArray(expected.selection[0])
+          ? expected.selection
+          : [expected.selection];
+        expect(await call((api) => api.selections(0))).toEqual(
+          selections.map(([anchor, head]) => ({ anchor, head })),
+        );
+      }
     });
   }
 });
